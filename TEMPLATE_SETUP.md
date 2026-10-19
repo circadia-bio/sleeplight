@@ -35,6 +35,7 @@ Legend: ✅ done · ⬜ still to do
 - ✅ `scripts/deploy.sh` written. App name and site address are the variables at the top
 - ⬜ Confirm the site address. It is currently `https://sleeplight.circadia-lab.uk` in three places: `scripts/deploy.sh`, `web/index.html` (preview tags) and `app/final-report.jsx` (`SITE_HOST`, printed on the shareable report image)
 - ⬜ `app.json` still has `web.baseUrl` set to `/SleepDiaries` and `scripts/fix-paths.js` still uses the same base. They were inherited unchanged; check them against the way you host the app
+- ✅ `netlify.toml` runs `npm run deploy` on Netlify (Node 20) and publishes `docs/`, so the site is built there rather than committed
 - ⬜ Decide on analytics (the original used Fathom; none is configured here)
 
 ## 5. CI (optional)
