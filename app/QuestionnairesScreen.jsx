@@ -1,7 +1,11 @@
 /**
- * app/QuestionnairesScreen.jsx — One-time research questionnaires screen
+ * app/QuestionnairesScreen.jsx — Screening questionnaires screen
  * Lifted from ProfileModal; pushed via router.push('/QuestionnairesScreen').
- * Accepts `morningCount` as a route param so the results-unlock logic still works.
+ *
+ * Lists the screening battery. An instrument that has been answered is locked:
+ * it shows when it was completed and cannot be redone. Research-only
+ * instruments (`noFeedback`) never show a score. Scored instruments show theirs
+ * once the participant has MIN_ENTRIES_FOR_REPORT morning entries.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
@@ -10,7 +14,8 @@ import { useRouter } from 'expo-router';
 import { FONTS, SIZES } from '../theme/typography';
 import { loadAllQuestionnaires, loadEntries } from '../storage/storage';
 import { QUESTIONNAIRES } from '../data/questionnaires';
-import showAlert from '../utils/alert';
+import { getScreeningStatus } from '../utils/screening';
+import { MIN_ENTRIES_FOR_REPORT } from '../utils/constants';
 import t, { locale, isSwedish } from '../i18n';
 
 const formatDate = (dateStr) => {
@@ -22,16 +27,21 @@ export default function QuestionnairesScreen() {
   const router = useRouter();
   const [morningCount, setMorningCount] = useState(0);
   const [qResults, setQResults]         = useState({});
+  const [status, setStatus]             = useState(getScreeningStatus([]));
 
   const load = useCallback(async () => {
     const [entries, qr] = await Promise.all([loadEntries(), loadAllQuestionnaires()]);
     setMorningCount(entries.filter((e) => e.type === 'morning').length);
     setQResults(Object.fromEntries(qr.map((r) => [r.id, r])));
+    setStatus(getScreeningStatus(qr));
   }, []);
 
   useEffect(() => { load(); }, []);
 
-  const resultsUnlocked = morningCount >= 14;
+  const resultsUnlocked = morningCount >= MIN_ENTRIES_FOR_REPORT;
+
+  const open = (q) =>
+    router.push({ pathname: '/QuestionnaireScreen', params: { id: q.id, flow: 'screening' } });
 
   return (
     <SafeAreaView style={styles.root}>
@@ -47,14 +57,20 @@ export default function QuestionnairesScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {isSwedish && <Text style={[styles.betaFootnote, { fontFamily: FONTS.bodyMedium }]}>{t('appText.instrumentLanguage')}</Text>}
+        <Text style={[styles.progressNote, { fontFamily: FONTS.bodyMedium }]}>
+          {status.complete
+            ? t('appText.screeningDone')
+            : t('appText.screeningProgress', { done: status.done, total: status.total })}
+        </Text>
         <View style={styles.card}>
           {QUESTIONNAIRES.map((q, i, arr) => {
             const result = qResults[q.id];
-            const interpretation = (result && resultsUnlocked) ? q.interpret(result.score) : null;
+            const showScore = !!result && resultsUnlocked && !q.noFeedback;
+            const interpretation = showScore ? q.interpret(result.score) : null;
 
             // Format score for display — handle object scores (e.g. MCTQ)
             let scoreDisplay = '';
-            if (result && resultsUnlocked) {
+            if (showScore) {
               if (typeof result.score === 'object' && result.score !== null) {
                 if (result.score.msf_sc !== undefined) {
                   const h = Math.floor(result.score.msf_sc);
@@ -67,6 +83,7 @@ export default function QuestionnairesScreen() {
                 scoreDisplay = String(result.score);
               }
             }
+            const completedOn = result ? formatDate(result.completedAt?.split('T')[0]) : '';
             return (
               <View key={q.id}>
                 <View style={styles.qRow}>
@@ -79,18 +96,16 @@ export default function QuestionnairesScreen() {
                         </View>
                       )}
                     </View>
-                    {result && resultsUnlocked ? (
+                    {showScore ? (
                       <View style={styles.qResultRow}>
                         <View style={[styles.qBadge, { backgroundColor: interpretation.color + '18', borderColor: interpretation.color }]}>
                           <Text style={[styles.qBadgeText, { color: interpretation.color, fontFamily: FONTS.body }]}>
                             {scoreDisplay} — {interpretation.label}
                           </Text>
                         </View>
-                        <Text style={[styles.qDate, { fontFamily: FONTS.bodyMedium }]}>
-                          {formatDate(result.completedAt?.split('T')[0])}
-                        </Text>
+                        <Text style={[styles.qDate, { fontFamily: FONTS.bodyMedium }]}>{completedOn}</Text>
                       </View>
-                    ) : result && !resultsUnlocked ? (
+                    ) : result && !q.noFeedback ? (
                       <View style={styles.qResultRow}>
                         <View style={[styles.qBadge, { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' }]}>
                           <Ionicons name="time-outline" size={13} color="#64748B" />
@@ -99,36 +114,30 @@ export default function QuestionnairesScreen() {
                           </Text>
                         </View>
                         <Text style={[styles.qDate, { fontFamily: FONTS.bodyMedium }]}>
-                          {t('profileQuestionnaires.completed')} {formatDate(result.completedAt?.split('T')[0])}
+                          {t('profileQuestionnaires.completed')} {completedOn}
                         </Text>
                       </View>
+                    ) : result ? (
+                      <Text style={[styles.qDate, { fontFamily: FONTS.bodyMedium }]}>
+                        {t('profileQuestionnaires.completed')} {completedOn}
+                      </Text>
                     ) : (
                       <Text style={[styles.qPending, { fontFamily: FONTS.bodyMedium }]}>
                         {t('profileQuestionnaires.notYetCompleted')}
                       </Text>
                     )}
                   </View>
-                  <TouchableOpacity
-                    style={styles.qBtn}
-                    onPress={() => {
-                      if (result) {
-                        showAlert(
-                          t('profileQuestionnaires.redoTitle'),
-                          t('profileQuestionnaires.redoBody', { title: q.shortTitle }),
-                          [
-                            { text: t('profileQuestionnaires.redoCancel'), style: 'cancel' },
-                            { text: t('profileQuestionnaires.redoConfirm'), style: 'destructive', onPress: () => router.push({ pathname: '/QuestionnaireScreen', params: { id: q.id, resultsUnlocked: String(resultsUnlocked) } }) },
-                          ]
-                        );
-                      } else {
-                        router.push({ pathname: '/QuestionnaireScreen', params: { id: q.id, resultsUnlocked: String(resultsUnlocked) } });
-                      }
-                    }}
-                  >
-                    <Text style={[styles.qBtnText, { fontFamily: FONTS.body }]}>
-                      {result ? t('profileQuestionnaires.redo') : t('profileQuestionnaires.start')}
-                    </Text>
-                  </TouchableOpacity>
+                  {result ? (
+                    <View style={styles.lockedChip} accessibilityLabel={t('appText.questionnaireLocked')}>
+                      <Ionicons name="lock-closed" size={14} color="#64748B" />
+                    </View>
+                  ) : (
+                    <TouchableOpacity style={styles.qBtn} onPress={() => open(q)}>
+                      <Text style={[styles.qBtnText, { fontFamily: FONTS.body }]}>
+                        {t('profileQuestionnaires.start')}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {i < arr.length - 1 && <View style={styles.divider} />}
               </View>
@@ -152,6 +161,7 @@ const styles = StyleSheet.create({
   headerTitle:  { fontSize: SIZES.cardTitle, color: '#1E3A5F' },
   backBtn:      { width: 44, alignItems: 'flex-start' },
   content:      { padding: 20, gap: 12, paddingBottom: 40 },
+  progressNote: { fontSize: SIZES.bodySmall, color: '#6B3FA0', textAlign: 'center' },
   card:         { backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden', shadowColor: '#4A7BB5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 8, elevation: 3 },
   qRow:         { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   qInfo:        { flex: 1, gap: 6 },
@@ -165,7 +175,8 @@ const styles = StyleSheet.create({
   qBadgeText:   { fontSize: SIZES.label, flexShrink: 1 },
   qDate:        { fontSize: SIZES.caption, color: '#64748B' },
   qPending:     { fontSize: SIZES.bodySmall, color: '#64748B' },
-  qBtn:         { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(74,123,181,0.12)', borderWidth: 0, shadowColor: '#4A7BB5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 3 },
-  qBtnText:     { fontSize: SIZES.label, color: '#4A7BB5' },
+  qBtn:         { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(107,63,160,0.12)', borderWidth: 0, shadowColor: '#6B3FA0', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 3 },
+  qBtnText:     { fontSize: SIZES.label, color: '#6B3FA0' },
+  lockedChip:   { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   divider:      { height: 1, backgroundColor: '#F1F5F9', marginHorizontal: 16 },
 });

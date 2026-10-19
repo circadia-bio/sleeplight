@@ -29,6 +29,10 @@ import {
 } from '../utils/referenceRanges';
 import IMAGES from '../assets/images';
 
+// Branding shown on the shareable report image. SITE_HOST is the deployed address.
+const APP_NAME = 'Sleep Light';
+const SITE_HOST = 'sleeplight.circadia-lab.uk';
+
 
 const formatDecimal = (n) => n.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
 const pad = (n) => String(Math.round(n)).padStart(2, '0');
@@ -306,7 +310,7 @@ async function handleShareWeb({ metrics, userName, dateRange, ranges }) {
   // Logo row
   ctx.fillStyle = '#4A7BB5';
   ctx.font = '600 14px system-ui, sans-serif';
-  ctx.fillText('\uD83C\uDF19  SLEEP DIARIES', W / 2, y + 14);
+  ctx.fillText(`\uD83C\uDF19  ${APP_NAME.toUpperCase()}`, W / 2, y + 14);
   y += 26;
 
   // Title
@@ -391,7 +395,7 @@ async function handleShareWeb({ metrics, userName, dateRange, ranges }) {
       ctx.fillStyle = '#4A7BB5';
       ctx.font = 'bold 16px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Sleep Diaries', W / 2, logoY + logoH / 2);
+      ctx.fillText(APP_NAME, W / 2, logoY + logoH / 2);
       resolve();
     };
     logoImg.src = logoSrc;
@@ -399,7 +403,7 @@ async function handleShareWeb({ metrics, userName, dateRange, ranges }) {
   ctx.fillStyle = '#1E3A5F';
   ctx.font = '13px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('sleepdiaries.circadia-lab.uk', W / 2, urlY);
+  ctx.fillText(SITE_HOST, W / 2, urlY);
 
   // ── 4. Share or download ──────────────────────────────────────────────────
   const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
@@ -407,7 +411,7 @@ async function handleShareWeb({ metrics, userName, dateRange, ranges }) {
   if (navigator.canShare?.({ files: [file] })) {
     await navigator.share({ files: [file], title: t('appText.mySleepReport') });
   } else if (navigator.share) {
-    await navigator.share({ title: t('appText.mySleepReport'), text: `${userName} \u00B7 ${dateRange} \u2014 sleepdiaries.circadia-lab.uk` });
+    await navigator.share({ title: t('appText.mySleepReport'), text: `${userName} \u00B7 ${dateRange} \u2014 ${SITE_HOST}` });
   } else {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -473,7 +477,7 @@ const ShareCard = React.forwardRef(({ metrics, userName, dateRange, width, heigh
         <View style={shareStyles.header}>
           <View style={shareStyles.logoRow}>
             <Text style={{ fontSize: 16, lineHeight: 20 }}>🌙</Text>
-            <Text style={[shareStyles.logoText, { fontFamily: FONTS.body }]}>SLEEP DIARIES</Text>
+            <Text style={[shareStyles.logoText, { fontFamily: FONTS.body }]}>{APP_NAME.toUpperCase()}</Text>
           </View>
           <Text style={[shareStyles.title, { fontFamily: FONTS.heading }]}>{t('appText.mySleepReport')}</Text>
           <Text style={[shareStyles.subtitle, { fontFamily: FONTS.bodyMedium }]}>{userName}  ·  {dateRange}</Text>
@@ -497,7 +501,7 @@ const ShareCard = React.forwardRef(({ metrics, userName, dateRange, width, heigh
       {/* Logo + URL pinned to bottom */}
       <View style={shareStyles.bottomBrand}>
         <Image source={require('../assets/images/logo.png')} style={shareStyles.logo} resizeMode="contain" />
-        <Text style={[shareStyles.footer, { fontFamily: FONTS.bodyMedium }]}>sleepdiaries.circadia-lab.uk</Text>
+        <Text style={[shareStyles.footer, { fontFamily: FONTS.bodyMedium }]}>{SITE_HOST}</Text>
       </View>
     </ViewShot>
   );
@@ -670,12 +674,12 @@ export default function FinalReportScreen() {
             <Text style={[styles.thresholdNote, { fontFamily: FONTS.bodyMedium }]}>{t('report.alcoholNote')}</Text>
           </Section>
 
-          {qResults.length > 0 && (
+          {qResults.some((r) => { const q = QUESTIONNAIRES.find((x) => x.id === r.id); return q && !q.noFeedback; }) && (
             <Section title={t('report.sectionQuestionnaires')}>
               {isSwedish && <Text style={[styles.thresholdNote, { fontFamily: FONTS.bodyMedium }]}>{t('appText.instrumentLanguage')}</Text>}
               {qResults.map((result) => {
                 const questionnaire = QUESTIONNAIRES.find((q) => q.id === result.id);
-                if (!questionnaire) return null;
+                if (!questionnaire || questionnaire.noFeedback) return null;
                 return (
                   <QuestionnaireReportCard
                     key={result.id}

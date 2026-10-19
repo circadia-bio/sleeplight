@@ -379,6 +379,25 @@ const flattenAnswer = (question, value) => {
   }
 };
 
+/**
+ * Flatten a one-time questionnaire answer or score for a CSV cell.
+ * Primitives pass through. Objects such as { hour, minute }, { from, to },
+ * { month, year }, { months } / { wholeLife } or { pa, na } become readable text
+ * instead of "[object Object]".
+ */
+const flattenQValue = (value) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') return value;
+  if ('hour' in value && 'minute' in value) {
+    return `${String(value.hour).padStart(2, '0')}:${String(value.minute).padStart(2, '0')}`;
+  }
+  if ('from' in value && 'to' in value) return `${value.from}-${value.to}`;
+  if ('month' in value && 'year' in value) return `${value.year}-${String(value.month).padStart(2, '0')}`;
+  if (value.wholeLife === true) return 'whole_life';
+  if ('months' in value && Object.keys(value).length === 1) return String(value.months);
+  return Object.entries(value).map(([k, v]) => `${k}=${v}`).join(';');
+};
+
 // Build a flat CSV string from all entries
 export const exportToCSV = async (userName) => {
   const researchCode = await loadResearchCode();
@@ -431,8 +450,8 @@ export const exportToCSV = async (userName) => {
       researchCode ?? '',
       q.id,
       result.completedAt,
-      result.score,
-      ...q.items.map((item) => result.answers?.[item.id] ?? ''),
+      flattenQValue(result.score),
+      ...q.items.map((item) => flattenQValue(result.answers?.[item.id])),
     ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',');
     return [headers.join(','), row].join('\n');
   }).filter(Boolean);

@@ -30,14 +30,16 @@ const StatBox = ({ icon, value, label, color = '#4A7BB5' }) => (
 export default function EntryTab() {
   const router = useRouter();
   const insets = useInsets();
-  const { entries, todayStatus, refresh } = useEntries();
+  const { entries, todayStatus, screening, refresh } = useEntries();
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const morningCompleted = todayStatus.morningCompleted;
   const eveningCompleted = todayStatus.eveningCompleted;
   const stats            = useMemo(() => computeStats(entries), [entries]);
-  const eveningLocked    = !morningCompleted;
+  const screeningLocked  = !screening.complete;
+  const morningLocked    = screeningLocked;
+  const eveningLocked    = screeningLocked || !morningCompleted;
   const s = stats ?? {};
 
   return (
@@ -75,13 +77,15 @@ export default function EntryTab() {
         )}
 
         <TouchableOpacity
-          onPress={() => router.push({ pathname: '/questionnaire', params: { entryType: 'morning' } })}
-          activeOpacity={0.9}
+          onPress={() => !morningLocked && router.push({ pathname: '/questionnaire', params: { entryType: 'morning' } })}
+          activeOpacity={morningLocked ? 1 : 0.9}
+          disabled={morningLocked}
           style={styles.cardWrapper}
           accessibilityRole="button"
-          accessibilityLabel={morningCompleted ? t('entry.a11y.morningCompleted') : t('entry.a11y.morningStart')}
+          accessibilityLabel={morningLocked ? t('appText.a11yEntryLockedScreening') : morningCompleted ? t('entry.a11y.morningCompleted') : t('entry.a11y.morningStart')}
+          accessibilityState={{ disabled: morningLocked }}
         >
-          <EntryCardContent type="morning" completed={morningCompleted} />
+          <EntryCardContent type="morning" completed={morningCompleted} locked={morningLocked} lockedReason="screening" />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => !eveningLocked && router.push({ pathname: '/questionnaire', params: { entryType: 'evening' } })}
@@ -89,10 +93,10 @@ export default function EntryTab() {
           disabled={eveningLocked}
           style={styles.cardWrapper}
           accessibilityRole="button"
-          accessibilityLabel={eveningLocked ? t('entry.a11y.eveningLocked') : eveningCompleted ? t('entry.a11y.eveningCompleted') : t('entry.a11y.eveningStart')}
+          accessibilityLabel={screeningLocked ? t('appText.a11yEntryLockedScreening') : eveningLocked ? t('entry.a11y.eveningLocked') : eveningCompleted ? t('entry.a11y.eveningCompleted') : t('entry.a11y.eveningStart')}
           accessibilityState={{ disabled: eveningLocked }}
         >
-          <EntryCardContent type="evening" completed={eveningCompleted} locked={eveningLocked} />
+          <EntryCardContent type="evening" completed={eveningCompleted} locked={eveningLocked} lockedReason={screeningLocked ? 'screening' : 'morning'} />
         </TouchableOpacity>
       </View>
     </View>

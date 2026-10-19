@@ -1,47 +1,59 @@
 /**
- * data/questionnaires.js — One-time research questionnaire definitions
+ * data/questionnaires.js — Screening battery definitions (Sleep Light)
+ *
+ * Every instrument here is part of the one-time SCREENING battery. Participants
+ * must complete all of them before the morning and evening diaries unlock, and
+ * each instrument locks once answered (see utils/screening.js).
  *
  * Each questionnaire object has the shape:
  *   {
  *     id:           string          — storage key suffix (e.g. 'ess')
  *     title:        string          — display title
  *     shortTitle:   string          — compact label for chips / badges
+ *     credit:       string          — attribution shown on the credits screen
  *     instructions: string          — shown before the first item
  *     reference:    string          — citation string
+ *     locked:       true            — cannot be redone once completed
+ *     noFeedback?:  true            — no score or interpretation is shown to the
+ *                                     participant (research-only data)
+ *     repeatInstructions?: true     — show the instructions on every item,
+ *                                     not just the first
  *     items: [
  *       {
  *         id:      string           — unique within the questionnaire
  *         number:  number|string    — display number
  *         text:    string           — question stem
- *         type:    string           — input type (see QuestionnaireModal)
+ *         type:    string           — input type (see QuestionnaireScreen)
  *         options?: [{ value, label }]
- *         min?:    number
- *         max?:    number
- *         unit?:   string
- *         defaultValue?: any
+ *         hint?:   string
+ *         min?, max?, unit?, defaultValue?
  *       }
  *     ],
- *     score:     (answers) => number|object   — computes score(s) from answers
+ *     score:     (answers) => number|object|null   — computes score(s) from answers
  *     interpret: (score)   => { label, color, description }
  *   }
  *
  * Input types used across instruments:
  *   scale_0_3      — 4-option labelled scale (0–3)
- *   scale_0_4      — 5-option labelled scale (0–4), options per item
- *   scale_0_10     — 11-point slider-style scale (0–10)
- *   scale_1_10     — 10-option labelled scale (1–10)
  *   single_choice  — pick one from a list of labelled options with explicit values
- *   yes_no         — Yes / No
- *   frequency_3    — Rarely or never / Sometimes / Usually or always
  *   frequency_4    — Not during the past month / <once/week / 1–2×/week / ≥3×/week
  *   time           — HH:MM stepper
  *   duration_min   — integer minutes stepper
  *   number         — integer stepper with min/max/unit
+ *   country        — type-to-search country list           → 'Brazil'
+ *   year_range     — from/to year steppers                 → { from, to }
+ *   month_year     — month + year steppers                 → { month, year }
+ *   months_or_whole_life — months stepper or "Whole life"  → { months } | { wholeLife: true }
  *
  * Adding a new questionnaire:
  *   1. Define it below following the same structure.
- *   2. Add it to the QUESTIONNAIRES array at the bottom.
+ *   2. Add it to the QUESTIONNAIRES array at the bottom. Its position there is
+ *      the order participants complete it in.
  */
+
+import {
+  PANAS_TERMS, PANAS_OPTIONS, PANAS_PA_ITEMS, PANAS_NA_ITEMS, PANAS_INSTRUCTION,
+} from './panas';
 
 // ─── Shared option sets ────────────────────────────────────────────────────────
 
@@ -52,24 +64,105 @@ const SCALE_0_3 = [
   { value: 3, label: 'High chance of dozing' },
 ];
 
-const FREQUENCY_3 = [
-  { value: 0, label: 'Rarely or never' },
-  { value: 1, label: 'Sometimes' },
-  { value: 2, label: 'Usually or always' },
-];
-
-const FREQUENCY_3_REV = [   // reverse-scored version
-  { value: 2, label: 'Rarely or never' },
-  { value: 1, label: 'Sometimes' },
-  { value: 0, label: 'Usually or always' },
-];
-
 const FREQUENCY_4 = [
   { value: 0, label: 'Not during the past month' },
   { value: 1, label: 'Less than once a week' },
   { value: 2, label: 'Once or twice a week' },
   { value: 3, label: 'Three or more times a week' },
 ];
+
+// A neutral result used by instruments that give the participant no feedback.
+const RECORDED = {
+  label: 'Recorded',
+  color: '#6B3FA0',
+  description: 'Your answers have been saved for the research team.',
+};
+
+// ─── GHQ-12 ───────────────────────────────────────────────────────────────────
+
+/** GHQ response sets. Values are the position on the scale (0–3). */
+const ghqOptions = (a, b, c, d) => [
+  { value: 0, label: a }, { value: 1, label: b }, { value: 2, label: c }, { value: 3, label: d },
+];
+const GHQ_BETTER   = ghqOptions('Better than usual', 'Same as usual', 'Less than usual', 'Much less than usual');
+const GHQ_MORE_SO  = ghqOptions('More so than usual', 'Same as usual', 'Less so than usual', 'Much less than usual');
+const GHQ_NEGATIVE = ghqOptions('Not at all', 'No more than usual', 'Rather more than usual', 'Much more than usual');
+
+export const GHQ12 = {
+  id:         'ghq12',
+  title:      'General Health Questionnaire (GHQ-12)',
+  shortTitle: 'GHQ-12',
+  credit:     'Goldberg, D. P., & Williams, P. (1988). A User’s Guide to the General Health Questionnaire. NFER-Nelson. Licensed instrument: permission from the publisher (GL Assessment) is required for use.',
+  locked:     true,
+  noFeedback: true,
+  repeatInstructions: true,
+  instructions: 'Have you recently:',
+  reference:
+    'Goldberg, D. P., & Williams, P. (1988). A User’s Guide to the General Health Questionnaire. NFER-Nelson.',
+  items: [
+    { id: 'ghq1',  number: 1,  text: 'Been able to concentrate on what you’re doing?',          type: 'single_choice', options: GHQ_BETTER },
+    { id: 'ghq2',  number: 2,  text: 'Lost much sleep over worry?',                             type: 'single_choice', options: GHQ_NEGATIVE },
+    { id: 'ghq3',  number: 3,  text: 'Felt that you are playing a useful part in things?',      type: 'single_choice',
+      options: ghqOptions('More so than usual', 'Same as usual', 'Less useful than usual', 'Much less useful') },
+    { id: 'ghq4',  number: 4,  text: 'Felt capable of making decisions about things?',          type: 'single_choice',
+      options: ghqOptions('More so than usual', 'Same as usual', 'Less so than usual', 'Much less capable') },
+    { id: 'ghq5',  number: 5,  text: 'Felt constantly under strain?',                           type: 'single_choice', options: GHQ_NEGATIVE },
+    { id: 'ghq6',  number: 6,  text: 'Felt that you couldn’t overcome your difficulties?',      type: 'single_choice', options: GHQ_NEGATIVE },
+    { id: 'ghq7',  number: 7,  text: 'Been able to enjoy your normal day-to-day activities?',   type: 'single_choice', options: GHQ_MORE_SO },
+    { id: 'ghq8',  number: 8,  text: 'Been able to face up to your problems?',                  type: 'single_choice',
+      options: ghqOptions('More so than usual', 'Same as usual', 'Less able than usual', 'Much less able') },
+    { id: 'ghq9',  number: 9,  text: 'Been feeling unhappy and depressed?',                     type: 'single_choice', options: GHQ_NEGATIVE },
+    { id: 'ghq10', number: 10, text: 'Been losing confidence in yourself?',                     type: 'single_choice', options: GHQ_NEGATIVE },
+    { id: 'ghq11', number: 11, text: 'Been thinking of yourself as a worthless person?',        type: 'single_choice', options: GHQ_NEGATIVE },
+    { id: 'ghq12', number: 12, text: 'Been feeling reasonably happy, all things considered?',   type: 'single_choice', options: GHQ_MORE_SO },
+  ],
+  /**
+   * Raw item values (0–3 by position) are stored in `answers`. The score holds both
+   * conventional totals:
+   *   likert  — sum of item values, 0–36
+   *   ghq     — GHQ (bimodal) scoring: responses 3rd/4th = 1, 1st/2nd = 0, total 0–12
+   */
+  score: (answers) => {
+    let likert = 0;
+    let ghq = 0;
+    for (let n = 1; n <= 12; n++) {
+      const v = answers[`ghq${n}`] ?? 0;
+      likert += v;
+      if (v >= 2) ghq += 1;
+    }
+    return { likert, ghq };
+  },
+  // Participants are not shown a mental-health classification.
+  interpret: () => RECORDED,
+};
+
+// ─── PANAS ────────────────────────────────────────────────────────────────────
+
+export const PANAS = {
+  id:         'panas',
+  title:      'Positive and Negative Affect Schedule (PANAS)',
+  shortTitle: 'PANAS',
+  credit:     'Watson, D., Clark, L. A., & Tellegen, A. (1988). Journal of Personality and Social Psychology, 54(6), 1063–1070.',
+  locked:     true,
+  noFeedback: true,
+  repeatInstructions: true,
+  instructions: PANAS_INSTRUCTION,
+  reference:
+    'Watson, D., Clark, L. A., & Tellegen, A. (1988). Journal of Personality and Social Psychology, 54(6), 1063–1070.',
+  items: PANAS_TERMS.map((term, i) => ({
+    id:      `panas${i + 1}`,
+    number:  i + 1,
+    text:    term,
+    type:    'single_choice',
+    options: PANAS_OPTIONS,
+  })),
+  /** Raw 1–5 responses are stored. Score = { pa, na }, each 10–50. See data/panas.js. */
+  score: (answers) => {
+    const sum = (ids) => ids.reduce((s, n) => s + (answers[`panas${n}`] ?? 0), 0);
+    return { pa: sum(PANAS_PA_ITEMS), na: sum(PANAS_NA_ITEMS) };
+  },
+  interpret: () => RECORDED,
+};
 
 // ─── ESS ──────────────────────────────────────────────────────────────────────
 
@@ -78,6 +171,7 @@ export const ESS = {
   title:      'Epworth Sleepiness Scale',
   shortTitle: 'ESS',
   credit:     'Johns, M. W. (1991). Sleep, 14(6), 540–545. © Murray W. Johns. Permission required for commercial use.',
+  locked:     true,
   instructions:
     'How likely are you to doze off or fall asleep in the following situations, ' +
     'in contrast to feeling just tired? This refers to your usual way of life in ' +
@@ -105,242 +199,6 @@ export const ESS = {
   },
 };
 
-// ─── ISI ──────────────────────────────────────────────────────────────────────
-
-export const ISI = {
-  id:         'isi',
-  title:      'Insomnia Severity Index',
-  shortTitle: 'ISI',
-  credit:     'Morin, C. M., et al. (2011). Sleep, 34(5), 601–608. © Charles M. Morin. Available for non-commercial research use.',
-  instructions:
-    'For each of the following questions, please rate the current severity of your ' +
-    'insomnia problem over the past two weeks.',
-  reference:
-    'Morin, C. M., et al. (2011). Sleep, 34(5), 601–608.',
-  items: [
-    {
-      id: 'isi1', number: 1, text: 'Difficulty falling asleep', type: 'scale_0_4',
-      options: [{ value: 0, label: 'None' }, { value: 1, label: 'Mild' }, { value: 2, label: 'Moderate' }, { value: 3, label: 'Severe' }, { value: 4, label: 'Very severe' }],
-    },
-    {
-      id: 'isi2', number: 2, text: 'Difficulty staying asleep', type: 'scale_0_4',
-      options: [{ value: 0, label: 'None' }, { value: 1, label: 'Mild' }, { value: 2, label: 'Moderate' }, { value: 3, label: 'Severe' }, { value: 4, label: 'Very severe' }],
-    },
-    {
-      id: 'isi3', number: 3, text: 'Problem waking up too early', type: 'scale_0_4',
-      options: [{ value: 0, label: 'None' }, { value: 1, label: 'Mild' }, { value: 2, label: 'Moderate' }, { value: 3, label: 'Severe' }, { value: 4, label: 'Very severe' }],
-    },
-    {
-      id: 'isi4', number: 4, text: 'How satisfied or dissatisfied are you with your current sleep pattern?', type: 'scale_0_4',
-      options: [{ value: 0, label: 'Very satisfied' }, { value: 1, label: 'Satisfied' }, { value: 2, label: 'Neutral' }, { value: 3, label: 'Dissatisfied' }, { value: 4, label: 'Very dissatisfied' }],
-    },
-    {
-      id: 'isi5', number: 5, text: 'To what extent do you consider your sleep problem to interfere with your daily functioning (e.g. daytime fatigue, concentration, mood)?', type: 'scale_0_4',
-      options: [{ value: 0, label: 'Not at all' }, { value: 1, label: 'A little' }, { value: 2, label: 'Somewhat' }, { value: 3, label: 'Much' }, { value: 4, label: 'Very much' }],
-    },
-    {
-      id: 'isi6', number: 6, text: 'How noticeable to others do you think your sleeping problem is in terms of impairing the quality of your life?', type: 'scale_0_4',
-      options: [{ value: 0, label: 'Not at all noticeable' }, { value: 1, label: 'Barely' }, { value: 2, label: 'Somewhat' }, { value: 3, label: 'Much' }, { value: 4, label: 'Very much noticeable' }],
-    },
-    {
-      id: 'isi7', number: 7, text: 'How worried or distressed are you about your current sleep problem?', type: 'scale_0_4',
-      options: [{ value: 0, label: 'Not at all' }, { value: 1, label: 'A little' }, { value: 2, label: 'Somewhat' }, { value: 3, label: 'Much' }, { value: 4, label: 'Very much' }],
-    },
-  ],
-  score: (answers) =>
-    [1,2,3,4,5,6,7].reduce((s, n) => s + (answers[`isi${n}`] ?? 0), 0),
-  interpret: (score) => {
-    if (score <= 7)  return { label: 'No clinically significant insomnia', color: '#2E7D32', description: 'Your score suggests no clinically significant insomnia.' };
-    if (score <= 14) return { label: 'Subthreshold insomnia',              color: '#F59E0B', description: 'Your score suggests subthreshold insomnia. Consider sleep hygiene strategies.' };
-    if (score <= 21) return { label: 'Clinical insomnia (moderate)',        color: '#EA580C', description: 'Your score indicates moderate clinical insomnia. Consider seeking professional support.' };
-    return              { label: 'Clinical insomnia (severe)',          color: '#DC2626', description: 'Your score indicates severe clinical insomnia. We recommend seeking medical advice.' };
-  },
-};
-
-// ─── DBAS-16 ──────────────────────────────────────────────────────────────────
-
-export const DBAS16 = {
-  id:         'dbas16',
-  title:      'Dysfunctional Beliefs and Attitudes about Sleep',
-  shortTitle: 'DBAS-16',
-  credit:     'Morin, C. M., Vallières, A., & Ivers, H. (2007). Sleep, 30(11), 1547–1554. © Charles M. Morin. Available via MAPI Research Trust for research use.',
-  instructions:
-    'Listed below are statements reflecting people\'s beliefs and attitudes about sleep. ' +
-    'Please indicate to what extent you personally agree or disagree with each statement. ' +
-    'There are no right or wrong answers. Use a scale from 0 (strongly disagree) to 10 (strongly agree).',
-  reference:
-    'Morin, C. M., Vallières, A., & Ivers, H. (2007). Sleep, 30(11), 1547–1554.',
-  items: [
-    { id: 'dbas1',  number: 1,  text: 'I need 8 hours of sleep to feel refreshed and function well during the day.', type: 'scale_0_10' },
-    { id: 'dbas2',  number: 2,  text: 'When I don\'t get the proper amount of sleep on a given night, I need to catch up on the next day by napping or on the next night by sleeping longer.', type: 'scale_0_10' },
-    { id: 'dbas3',  number: 3,  text: 'I am concerned that chronic insomnia may have serious consequences on my physical health.', type: 'scale_0_10' },
-    { id: 'dbas4',  number: 4,  text: 'I am worried that I may lose control over my abilities to sleep.', type: 'scale_0_10' },
-    { id: 'dbas5',  number: 5,  text: 'After a poor night\'s sleep, I know that it will interfere with my daily activities on the next day.', type: 'scale_0_10' },
-    { id: 'dbas6',  number: 6,  text: 'In order to be alert and function well during the day, I believe I would be better off taking a sleeping pill rather than having a poor night\'s sleep.', type: 'scale_0_10' },
-    { id: 'dbas7',  number: 7,  text: 'When I feel irritable, depressed, or anxious during the day, it is mostly because I did not sleep well the night before.', type: 'scale_0_10' },
-    { id: 'dbas8',  number: 8,  text: 'When I sleep poorly on one night, I know it will disturb my sleep schedule for the whole week.', type: 'scale_0_10' },
-    { id: 'dbas9',  number: 9,  text: 'Without an adequate night\'s sleep, I can hardly function the next day.', type: 'scale_0_10' },
-    { id: 'dbas10', number: 10, text: 'I can\'t ever predict whether I\'ll have a good or poor night\'s sleep.', type: 'scale_0_10' },
-    { id: 'dbas11', number: 11, text: 'I have little ability to manage the negative consequences of disturbed sleep.', type: 'scale_0_10' },
-    { id: 'dbas12', number: 12, text: 'When I feel tired, have no energy, or just seem not to function well during the day, it is generally because I did not sleep well the night before.', type: 'scale_0_10' },
-    { id: 'dbas13', number: 13, text: 'I believe insomnia is essentially the result of a chemical imbalance.', type: 'scale_0_10' },
-    { id: 'dbas14', number: 14, text: 'I feel that insomnia is ruining my ability to enjoy life and prevents me from doing what I want.', type: 'scale_0_10' },
-    { id: 'dbas15', number: 15, text: 'Medication is probably the only solution to sleeplessness.', type: 'scale_0_10' },
-    { id: 'dbas16', number: 16, text: 'I avoid or cancel obligations (social, family) after a poor night\'s sleep.', type: 'scale_0_10' },
-  ],
-  score: (answers) => {
-    const total = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
-      .reduce((s, n) => s + (answers[`dbas${n}`] ?? 0), 0);
-    return Math.round((total / 16) * 10) / 10; // mean item score, 1dp
-  },
-  interpret: (score) => {
-    // score here is the mean item score (0–10)
-    if (score <= 4) return { label: 'Within normal range', color: '#2E7D32', description: 'Your beliefs and attitudes about sleep are broadly within the normal range.' };
-    return           { label: 'Clinically relevant',   color: '#EA580C', description: 'Your score suggests dysfunctional beliefs about sleep that may be worth exploring, particularly in the context of insomnia.' };
-  },
-};
-
-// ─── KSS ──────────────────────────────────────────────────────────────────────
-
-export const KSS = {
-  id:         'kss',
-  beta:       true,
-  title:      'Karolinska Sleepiness Scale',
-  shortTitle: 'KSS',
-  credit:     'Åkerstedt, T., & Gillberg, M. (1990). International Journal of Neuroscience, 52(1–2), 29–37. Freely available for research use.',
-  instructions:
-    'Using the scale below, please indicate how sleepy you feel right now, at this moment.',
-  reference:
-    'Åkerstedt, T., & Gillberg, M. (1990). International Journal of Neuroscience, 52(1–2), 29–37.',
-  items: [
-    {
-      id: 'kss1', number: 1, text: 'How sleepy do you feel right now?', type: 'scale_1_10',
-      options: [
-        { value: 1,  label: 'Extremely alert' },
-        { value: 2,  label: 'Very alert' },
-        { value: 3,  label: 'Alert' },
-        { value: 4,  label: 'Rather alert' },
-        { value: 5,  label: 'Neither alert nor sleepy' },
-        { value: 6,  label: 'Some signs of sleepiness' },
-        { value: 7,  label: 'Sleepy, but no difficulty remaining awake' },
-        { value: 8,  label: 'Sleepy, some effort to keep alert' },
-        { value: 9,  label: 'Very sleepy, great effort to keep alert, fighting sleep' },
-        { value: 10, label: 'Extremely sleepy, cannot keep awake' },
-      ],
-    },
-  ],
-  score: (answers) => answers['kss1'] ?? 0,
-  interpret: (score) => {
-    if (score <= 5) return { label: 'Alert',            color: '#2E7D32', description: 'You are adequately alert for most tasks.' };
-    if (score === 6) return { label: 'Onset of sleepiness', color: '#F59E0B', description: 'You are showing early signs of sleepiness. Caution is warranted for safety-critical tasks.' };
-    if (score <= 8) return { label: 'Moderate sleepiness', color: '#EA580C', description: 'Moderate sleepiness — performance impairment is likely.' };
-    return              { label: 'Severe sleepiness',  color: '#DC2626', description: 'Severe sleepiness — significant risk of performance failure. Avoid safety-critical tasks.' };
-  },
-};
-
-// ─── MEQ ──────────────────────────────────────────────────────────────────────
-
-export const MEQ = {
-  id:         'meq',
-  title:      'Morningness–Eveningness Questionnaire',
-  shortTitle: 'MEQ',
-  credit:     'Horne, J. A., & Östberg, O. (1976). International Journal of Chronobiology, 4(2), 97–110. In the public domain.',
-  instructions:
-    'Please read each question carefully before answering. Answer ALL questions. ' +
-    'Each question should be answered independently of the others. ' +
-    'Answer according to how you truly feel, not how you think you should feel.',
-  reference:
-    'Horne, J. A., & Östberg, O. (1976). International Journal of Chronobiology, 4(2), 97–110.',
-  items: [
-    {
-      id: 'meq1', number: 1, text: 'Considering only your own "feeling best" rhythm, at what time would you get up if you were entirely free to plan your day?', type: 'single_choice',
-      options: [{ value: 5, label: '5:00–6:30 AM' }, { value: 4, label: '6:30–7:45 AM' }, { value: 3, label: '7:45–9:45 AM' }, { value: 2, label: '9:45–11:00 AM' }, { value: 1, label: '11:00 AM–12:00 PM' }],
-    },
-    {
-      id: 'meq2', number: 2, text: 'Considering only your own "feeling best" rhythm, at what time would you go to bed if you were entirely free to plan your evening?', type: 'single_choice',
-      options: [{ value: 5, label: '8:00–9:00 PM' }, { value: 4, label: '9:00–10:15 PM' }, { value: 3, label: '10:15 PM–12:30 AM' }, { value: 2, label: '12:30–1:45 AM' }, { value: 1, label: '1:45–3:00 AM' }],
-    },
-    {
-      id: 'meq3', number: 3, text: 'If there is a specific time at which you have to get up in the morning, to what extent do you depend on being woken by an alarm clock?', type: 'single_choice',
-      options: [{ value: 4, label: 'Not at all dependent' }, { value: 3, label: 'Slightly dependent' }, { value: 2, label: 'Fairly dependent' }, { value: 1, label: 'Very dependent' }],
-    },
-    {
-      id: 'meq4', number: 4, text: 'Assuming adequate environmental conditions, how easy do you find getting up in the morning?', type: 'single_choice',
-      options: [{ value: 1, label: 'Not at all easy' }, { value: 2, label: 'Not very easy' }, { value: 3, label: 'Fairly easy' }, { value: 4, label: 'Very easy' }],
-    },
-    {
-      id: 'meq5', number: 5, text: 'How alert do you feel during the first half hour after you wake up in the morning?', type: 'single_choice',
-      options: [{ value: 1, label: 'Not at all alert' }, { value: 2, label: 'Slightly alert' }, { value: 3, label: 'Fairly alert' }, { value: 4, label: 'Very alert' }],
-    },
-    {
-      id: 'meq6', number: 6, text: 'How is your appetite during the first half hour after you wake up in the morning?', type: 'single_choice',
-      options: [{ value: 1, label: 'Very poor' }, { value: 2, label: 'Fairly poor' }, { value: 3, label: 'Fairly good' }, { value: 4, label: 'Very good' }],
-    },
-    {
-      id: 'meq7', number: 7, text: 'During the first half hour after you wake up in the morning, how tired do you feel?', type: 'single_choice',
-      options: [{ value: 1, label: 'Very tired' }, { value: 2, label: 'Fairly tired' }, { value: 3, label: 'Fairly refreshed' }, { value: 4, label: 'Very refreshed' }],
-    },
-    {
-      id: 'meq8', number: 8, text: 'When you have no commitments the next day, at what time do you go to bed compared to your usual bedtime?', type: 'single_choice',
-      options: [{ value: 4, label: 'Seldom or never later' }, { value: 3, label: 'Less than one hour later' }, { value: 2, label: '1–2 hours later' }, { value: 1, label: 'More than two hours later' }],
-    },
-    {
-      id: 'meq9', number: 9, text: 'A friend suggests you exercise together between 7:00–8:00 AM twice a week. Bearing in mind only your "feeling best" rhythm, how do you think you would perform?', type: 'single_choice',
-      options: [{ value: 4, label: 'Would be in good form' }, { value: 3, label: 'Would be in reasonable form' }, { value: 2, label: 'Would find it difficult' }, { value: 1, label: 'Would find it very difficult' }],
-    },
-    {
-      id: 'meq10', number: 10, text: 'At what time in the evening do you feel tired and in need of sleep?', type: 'single_choice',
-      options: [{ value: 5, label: '8:00–9:00 PM' }, { value: 4, label: '9:00–10:15 PM' }, { value: 3, label: '10:15 PM–12:45 AM' }, { value: 2, label: '12:45–2:00 AM' }, { value: 1, label: '2:00–3:00 AM' }],
-    },
-    {
-      id: 'meq11', number: 11, text: 'You want to be at your peak for a 2-hour mentally exhausting test. Which testing time would you choose?', type: 'single_choice',
-      options: [{ value: 6, label: '8:00–10:00 AM' }, { value: 4, label: '11:00 AM–1:00 PM' }, { value: 2, label: '3:00–5:00 PM' }, { value: 0, label: '7:00–9:00 PM' }],
-    },
-    {
-      id: 'meq12', number: 12, text: 'If you went to bed at 11:00 PM, at what level of tiredness would you be?', type: 'single_choice',
-      options: [{ value: 0, label: 'Not at all tired' }, { value: 2, label: 'A little tired' }, { value: 3, label: 'Fairly tired' }, { value: 5, label: 'Very tired' }],
-    },
-    {
-      id: 'meq13', number: 13, text: 'You have gone to bed several hours later than usual, but there is no need to get up at any particular time the next morning. Which is most likely?', type: 'single_choice',
-      options: [{ value: 4, label: 'Will wake up at usual time and will NOT fall asleep again' }, { value: 3, label: 'Will wake up at usual time and will doze thereafter' }, { value: 2, label: 'Will wake up at usual time but will fall asleep again' }, { value: 1, label: 'Will NOT wake up until later than usual' }],
-    },
-    {
-      id: 'meq14', number: 14, text: 'One night you have to remain awake between 4:00–6:00 AM for a night watch. You have no commitments the next day. Which suits you best?', type: 'single_choice',
-      options: [{ value: 1, label: 'Would NOT go to bed until watch was over' }, { value: 2, label: 'Would take a nap before and sleep after' }, { value: 3, label: 'Would take a good sleep before and nap after' }, { value: 4, label: 'Would take ALL sleep before watch' }],
-    },
-    {
-      id: 'meq15', number: 15, text: 'You have to do two hours of hard physical work. Considering only your "feeling best" rhythm, which time would you choose?', type: 'single_choice',
-      options: [{ value: 4, label: '8:00–10:00 AM' }, { value: 3, label: '11:00 AM–1:00 PM' }, { value: 2, label: '3:00–5:00 PM' }, { value: 1, label: '7:00–9:00 PM' }],
-    },
-    {
-      id: 'meq16', number: 16, text: 'A friend suggests you exercise together between 10:00–11:00 PM twice a week. How well do you think you would perform?', type: 'single_choice',
-      options: [{ value: 1, label: 'Would be in good form' }, { value: 2, label: 'Would be in reasonable form' }, { value: 3, label: 'Would find it difficult' }, { value: 4, label: 'Would find it very difficult' }],
-    },
-    {
-      id: 'meq17', number: 17, text: 'Suppose you can choose your own work hours. You work a 5-hour day and are paid based on results. At approximately what time would you choose to begin?', type: 'single_choice',
-      options: [{ value: 5, label: '5 hours starting at 4:00–8:00 AM' }, { value: 4, label: '5 hours starting at 8:00–9:00 AM' }, { value: 3, label: '5 hours starting at 9:00 AM–2:00 PM' }, { value: 2, label: '5 hours starting at 2:00–5:00 PM' }, { value: 1, label: '5 hours starting at 5:00 PM–4:00 AM' }],
-    },
-    {
-      id: 'meq18', number: 18, text: 'At what time of the day do you think you reach your "feeling best" peak?', type: 'single_choice',
-      options: [{ value: 5, label: '5:00–8:00 AM' }, { value: 4, label: '8:00–10:00 AM' }, { value: 3, label: '10:00 AM–5:00 PM' }, { value: 2, label: '5:00–10:00 PM' }, { value: 1, label: '10:00 PM–5:00 AM' }],
-    },
-    {
-      id: 'meq19', number: 19, text: 'One hears about "morning" and "evening" types of people. Which ONE of these types do you consider yourself to be?', type: 'single_choice',
-      options: [{ value: 6, label: 'Definitely a morning type' }, { value: 4, label: 'More a morning type than an evening type' }, { value: 2, label: 'More an evening type than a morning type' }, { value: 0, label: 'Definitely an evening type' }],
-    },
-  ],
-  score: (answers) =>
-    [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
-      .reduce((s, n) => s + (answers[`meq${n}`] ?? 0), 0),
-  interpret: (score) => {
-    if (score >= 70) return { label: 'Definite morning type',   color: '#F59E0B', description: 'You are a definite morning type (early bird).' };
-    if (score >= 59) return { label: 'Moderate morning type',   color: '#84CC16', description: 'You have a moderate preference for mornings.' };
-    if (score >= 42) return { label: 'Intermediate type',       color: '#2E7D32', description: 'You have an intermediate chronotype — neither strongly morning nor evening.' };
-    if (score >= 31) return { label: 'Moderate evening type',   color: '#6366F1', description: 'You have a moderate preference for evenings.' };
-    return               { label: 'Definite evening type',    color: '#7C3AED', description: 'You are a definite evening type (night owl).' };
-  },
-};
-
 // ─── PSQI ─────────────────────────────────────────────────────────────────────
 
 export const PSQI = {
@@ -349,6 +207,7 @@ export const PSQI = {
   title:      'Pittsburgh Sleep Quality Index',
   shortTitle: 'PSQI',
   credit:     'Buysse, D. J., et al. (1989). Psychiatry Research, 28(2), 193–213. © University of Pittsburgh. Permission required; contact the authors for research use.',
+  locked:     true,
   instructions:
     'The following questions relate to your usual sleep habits during the past month only. ' +
     'Your answers should indicate the most accurate reply for the majority of days and nights in the past month.',
@@ -447,78 +306,6 @@ export const PSQI = {
   },
 };
 
-// ─── RU-SATED ─────────────────────────────────────────────────────────────────
-
-const RUSATED_OPTIONS = [
-  { value: 0, label: 'Never' },
-  { value: 1, label: 'Rarely' },
-  { value: 2, label: 'Sometimes' },
-  { value: 3, label: 'Often' },
-  { value: 4, label: 'Always' },
-];
-
-export const RUSATED = {
-  id:         'rusated',
-  maxScore:   24,
-  title:      'Ru-SATED Sleep Health Scale',
-  shortTitle: 'RU-SATED',
-  credit:     'Buysse, D. J. (2014). Sleep, 37(1), 9–17. © 2016 University of Pittsburgh. May not be used without permission.',
-  instructions:
-    'The following statements refer to your sleep during the past one month. Please indicate the best ' +
-    'response for each statement. “Night” refers to the time you get your longest sleep of the day, which ' +
-    'may not be when it is dark out. “Day” refers to the time of day when you are usually awake. ' +
-    '“Sleep” refers to the longest period of sleep you have in a 24-hour day.',
-  reference:
-    'Buysse, D. J. (2014). Sleep, 37(1), 9–17.',
-  items: [
-    { id: 'rus1', number: 1, text: 'I go to sleep and wake up at about the same time every day.',                                                      type: 'single_choice', options: RUSATED_OPTIONS },
-    { id: 'rus2', number: 2, text: 'I sleep 7–9 hours per night.',                                                                                      type: 'single_choice', options: RUSATED_OPTIONS },
-    { id: 'rus3', number: 3, text: 'The middle of my sleep period is between 2:00 AM and 4:00 AM.',                                                       type: 'single_choice', options: RUSATED_OPTIONS },
-    { id: 'rus4', number: 4, text: 'I am awake for less than 30 minutes between the time I go to bed and the time I get out of bed.',                     type: 'single_choice', options: RUSATED_OPTIONS },
-    { id: 'rus5', number: 5, text: 'I stay awake all day without dozing.',                                                                                type: 'single_choice', options: RUSATED_OPTIONS },
-    { id: 'rus6', number: 6, text: 'I am satisfied with my sleep.',                                                                                       type: 'single_choice', options: RUSATED_OPTIONS },
-  ],
-  score: (answers) =>
-    [1,2,3,4,5,6].reduce((s, n) => s + (answers[`rus${n}`] ?? 0), 0),
-  interpret: (score) => {
-    if (score >= 17) return { label: 'Good sleep health',     color: '#2E7D32', description: 'Your score suggests good multidimensional sleep health.' };
-    if (score >= 9)  return { label: 'Moderate sleep health', color: '#F59E0B', description: 'Your score suggests moderate sleep health. There may be room for improvement.' };
-    return               { label: 'Poor sleep health',      color: '#DC2626', description: 'Your score suggests poor sleep health across multiple dimensions. Consider speaking with a clinician.' };
-  },
-};
-
-// ─── STOP-BANG ────────────────────────────────────────────────────────────────
-
-export const STOPBANG = {
-  id:         'stopbang',
-  title:      'STOP-BANG Questionnaire',
-  shortTitle: 'STOP-BANG',
-  credit:     'Chung, F., et al. (2016). Chest, 149(3), 631–638. © University Health Network, Toronto. Freely available for clinical and non-commercial research use (stopbang.ca).',
-  instructions:
-    'Please answer YES or NO to each of the following questions. ' +
-    'This questionnaire screens for the risk of obstructive sleep apnoea.',
-  reference:
-    'Chung, F., et al. (2016). Chest, 149(3), 631–638.',
-  items: [
-    { id: 'sb_s', number: 'S', text: 'Do you snore loudly (louder than talking or loud enough to be heard through closed doors)?',                             type: 'yes_no' },
-    { id: 'sb_t', number: 'T', text: 'Do you often feel tired, fatigued, or sleepy during the daytime?',                                                      type: 'yes_no' },
-    { id: 'sb_o', number: 'O', text: 'Has anyone observed you stop breathing, or choking/gasping, during your sleep?',                                        type: 'yes_no' },
-    { id: 'sb_p', number: 'P', text: 'Do you have or are you being treated for high blood pressure?',                                                         type: 'yes_no' },
-    { id: 'sb_b', number: 'B', text: 'Is your BMI greater than 35 kg/m²?',                                                                                    type: 'yes_no' },
-    { id: 'sb_a', number: 'A', text: 'Are you older than 50 years?',                                                                                          type: 'yes_no' },
-    { id: 'sb_n', number: 'N', text: 'Is your neck circumference greater than 40 cm (measured at the level of the cricothyroid membrane)?',                   type: 'yes_no' },
-    { id: 'sb_g', number: 'G', text: 'Are you male?',                                                                                                         type: 'yes_no' },
-  ],
-  score: (answers) =>
-    ['sb_s','sb_t','sb_o','sb_p','sb_b','sb_a','sb_n','sb_g']
-      .reduce((s, k) => s + (answers[k] === 'yes' ? 1 : 0), 0),
-  interpret: (score) => {
-    if (score <= 2) return { label: 'Low OSA risk',          color: '#2E7D32', description: 'Your score suggests a low risk for obstructive sleep apnoea.' };
-    if (score <= 4) return { label: 'Intermediate OSA risk', color: '#F59E0B', description: 'Your score suggests an intermediate risk for obstructive sleep apnoea. Consider further evaluation.' };
-    return              { label: 'High OSA risk',           color: '#DC2626', description: 'Your score suggests a high risk for obstructive sleep apnoea. We recommend seeking medical evaluation.' };
-  },
-};
-
 // ─── MCTQ ─────────────────────────────────────────────────────────────────────
 
 export const MCTQ = {
@@ -526,6 +313,7 @@ export const MCTQ = {
   title:      'Munich Chronotype Questionnaire',
   shortTitle: 'MCTQ',
   credit:     'Roenneberg, T., et al. (2003). Journal of Biological Rhythms, 18(1), 80–90. © Till Roenneberg, LMU Munich. Free for non-commercial research; contact thewep.org for permission.',
+  locked:     true,
   instructions:
     'Please answer the following questions about your typical sleep behaviour on workdays ' +
     'and on free days (days without work, school, or early appointments). ' +
@@ -619,8 +407,99 @@ function fmtH(h) {
   return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
 }
 
+// ─── Light History ────────────────────────────────────────────────────────────
+
+export const LIGHTHISTORY = {
+  id:         'lighthistory',
+  title:      'Light History Information',
+  shortTitle: 'Light History',
+  credit:     'Sleep Light study questions. Circadia Lab, Northumbria University.',
+  locked:     true,
+  noFeedback: true,
+  instructions:
+    'These questions are about where you lived before coming to the UK and how long you have been here.',
+  reference:  'Sleep Light study questions. Circadia Lab, Northumbria University.',
+  items: [
+    { id: 'lh_country',     number: 1, text: 'Which country did you arrive in the UK from?',           type: 'country' },
+    { id: 'lh_home_years',  number: 2, text: 'How long did you live in your home country?',            type: 'year_range',
+      hint: 'Choose the first and last year you lived there.' },
+    { id: 'lh_arrival',     number: 3, text: 'When did you arrive in the UK?',                         type: 'month_year' },
+    { id: 'lh_uk_duration', number: 4, text: 'How long have you lived in the UK?',                     type: 'months_or_whole_life',
+      hint: 'Enter the number of months, or choose “Whole life” if you have always lived here.' },
+    { id: 'lh_study_date',  number: 5, text: 'When are you participating in the current study?',       type: 'month_year', defaultValue: 'now',
+      hint: 'This is set to this month. Change it only if it is wrong.' },
+  ],
+  // Descriptive data only: nothing to score.
+  score: () => null,
+  interpret: () => RECORDED,
+};
+
+// ─── Social Media Usage ───────────────────────────────────────────────────────
+
+const SOCIAL_MEDIA_OPTIONS = [
+  { value: 0, label: 'Never' },
+  { value: 1, label: '1-2 times per week' },
+  { value: 2, label: '3-4 times per week' },
+  { value: 3, label: '5-6 times per week' },
+  { value: 4, label: 'Once daily' },
+  { value: 5, label: '2-5 times daily' },
+  { value: 6, label: '6-9 times daily' },
+  { value: 7, label: '10-13 times daily' },
+  { value: 8, label: 'Hourly or more' },
+];
+
+const SOCIAL_MEDIA_TEXTS = [
+  'Made/shared a post or story about something positive that was personally about me',
+  'Looked at how many people liked, commented on, shared my content, or followed/friended me',
+  'Read comments to my own content',
+  'Edited and/or deleted my own social media content',
+  'Played with photo filtering/photo editing',
+  'Compared my body or appearance to others’',
+  'Compared my life or experiences to others’',
+  'Reminisced about the past',
+  'Made/shared a post or story about something negative that was personally about me',
+  'Made/shared a post or story about something negative that was NOT personally about me',
+  'Commented unsupportively or disliked/“reacted” unsupportively on other’s post(s)',
+  'Sought out content that I morally or ethically disagreed with',
+  'Scrolled aimlessly through my feed(s)',
+  'Looked at others’ stories',
+  'Navigated to others’ profiles in my social network (e.g., friends or friends of friends)',
+  'Navigated to others’ pages who I do not know (e.g., influencers or other famous people)',
+  'Watched videos such as memes, news content, and how-tos/recipes.',
+];
+
+export const SOCIALMEDIA = {
+  id:         'socialmedia',
+  title:      'Social Media Usage',
+  shortTitle: 'Social Media',
+  // The source instrument is not named in the study document. Confirm before publishing.
+  credit:     'Source to be confirmed by the study team.',
+  locked:     true,
+  noFeedback: true,
+  instructions:
+    'Please indicate how frequently you have engaged in each of the following social media ' +
+    'activities in the PAST WEEK (7 days). Please only include activities engaged in on social ' +
+    'networking sites such as Instagram and Facebook. Do not include activities related to direct ' +
+    'messaging such as Facebook Messenger and Instagram direct messages.',
+  reference:  'Source to be confirmed by the study team.',
+  items: SOCIAL_MEDIA_TEXTS.map((text, i) => ({
+    id:      `sm${i + 1}`,
+    number:  i + 1,
+    text,
+    type:    'single_choice',
+    options: SOCIAL_MEDIA_OPTIONS,
+    hint:    'Past 7 days. Social networking sites only, not direct messages.',
+  })),
+  // Frequencies are stored raw (0–8 by position); no composite score is defined.
+  score: () => null,
+  interpret: () => RECORDED,
+};
+
 // ─── Registry ──────────────────────────────────────────────────────────────────
 
-export const QUESTIONNAIRES = [ESS, ISI, DBAS16, MEQ, PSQI, RUSATED, STOPBANG, MCTQ];
+/** Screening battery, in the order participants complete it. */
+export const QUESTIONNAIRES = [GHQ12, MCTQ, ESS, PSQI, PANAS, LIGHTHISTORY, SOCIALMEDIA];
+
+export const SCREENING_IDS = QUESTIONNAIRES.map((q) => q.id);
 
 export const getQuestionnaire = (id) => QUESTIONNAIRES.find((q) => q.id === id) ?? null;

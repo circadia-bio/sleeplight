@@ -1,8 +1,17 @@
 /**
- * app/QuestionnaireScreen.jsx — Full-screen questionnaire route
+ * app/QuestionnaireScreen.jsx — Full-screen one-time questionnaire route (purple)
  *
- * Replaces QuestionnaireModal for the QuestionnairesScreen flow.
- * Receives `id` and `resultsUnlocked` as route params.
+ * Route params:
+ *   id    questionnaire id from data/questionnaires.js
+ *   flow  'screening' when the participant is working through the screening
+ *         battery. Finishing an instrument then moves straight on to the next
+ *         unfinished one, and finishing the last returns to Home.
+ *
+ * Locking: instruments flagged `locked` cannot be redone. If one has already
+ * been answered this screen shows a locked notice instead of the items.
+ *
+ * Instruments flagged `noFeedback` save quietly and show a thank-you card
+ * instead of a score.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -11,11 +20,18 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { saveQuestionnaire, loadEntries } from '../storage/storage';
+import { saveQuestionnaire, loadEntries, loadQuestionnaire, loadAllQuestionnaires } from '../storage/storage';
+import { useEntries } from '../storage/EntriesContext';
 import { QUESTIONNAIRES } from '../data/questionnaires';
+import { getScreeningStatus } from '../utils/screening';
+import { MIN_ENTRIES_FOR_REPORT } from '../utils/constants';
 import { FONTS, SIZES } from '../theme/typography';
 import t, { isSwedish } from '../i18n';
 import ScreenBackground from '../components/ScreenBackground';
+import {
+  CountryInput, YearRangeInput, MonthYearInput, MonthsOrWholeLifeInput,
+  currentMonthYear, isValidYearRange, isValidMonthYear, isValidMonthsOrWholeLife,
+} from '../components/QuestionnaireInputs';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 const C = {
@@ -218,8 +234,41 @@ const ProgressBar = ({ current, total }) => (
   </View>
 );
 
-// ─── Result screen ────────────────────────────────────────────────────────────
-const ResultScreen = ({ questionnaire, score, resultsUnlocked, onDone }) => {
+// ─── Result screens ───────────────────────────────────────────────────────────
+const DoneButton = ({ label, onPress }) => (
+  <TouchableOpacity style={styles.doneBtn} onPress={onPress}>
+    <Text style={styles.doneBtnText}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const LockedScreen = ({ doneLabel, onDone }) => (
+  <View style={styles.resultContainer}>
+    <View style={styles.resultCard}>
+      <Ionicons name="lock-closed-outline" size={48} color={C.primary} />
+      <Text style={styles.resultTitle}>{t('appText.questionnaireLocked')}</Text>
+      <Text style={styles.pendingDesc}>{t('appText.questionnaireLockedBody')}</Text>
+    </View>
+    <DoneButton label={doneLabel} onPress={onDone} />
+  </View>
+);
+
+const ResultScreen = ({ questionnaire, score, resultsUnlocked, onDone, doneLabel }) => {
+  // Research-only instruments: no score is shown.
+  if (questionnaire.noFeedback) {
+    return (
+      <View style={styles.resultContainer}>
+        <View style={styles.resultCard}>
+          <Ionicons name="checkmark-circle-outline" size={56} color={C.primary} />
+          <Text style={styles.resultTitle}>{t('appText.questionnaireSaved')}</Text>
+          <Text style={styles.pendingDesc}>
+            {t('appText.questionnaireSavedBody', { title: questionnaire.shortTitle })}
+          </Text>
+        </View>
+        <DoneButton label={doneLabel} onPress={onDone} />
+      </View>
+    );
+  }
+
   if (!resultsUnlocked) {
     return (
       <View style={styles.resultContainer}>
@@ -230,9 +279,7 @@ const ResultScreen = ({ questionnaire, score, resultsUnlocked, onDone }) => {
             {t('questionnaireModal.pendingDesc', { shortTitle: questionnaire.shortTitle })}
           </Text>
         </View>
-        <TouchableOpacity style={styles.doneBtn} onPress={onDone}>
-          <Text style={styles.doneBtnText}>{t('questionnaireModal.done')}</Text>
-        </TouchableOpacity>
+        <DoneButton label={doneLabel} onPress={onDone} />
       </View>
     );
   }
@@ -247,7 +294,7 @@ const ResultScreen = ({ questionnaire, score, resultsUnlocked, onDone }) => {
       scoreDisplay = `${pad(h)}:${pad(m)}`;
       scoreMax = 'MSFsc';
     }
-  } else {
+  } else if (score !== null && score !== undefined) {
     scoreDisplay = String(score);
     const maxScore = questionnaire.maxScore ?? questionnaire.items.reduce((mx, item) => {
       if (!item.options) return mx;
@@ -268,9 +315,7 @@ const ResultScreen = ({ questionnaire, score, resultsUnlocked, onDone }) => {
         <Text style={styles.interpretDesc}>{interpretation.description}</Text>
         <Text style={styles.referenceText}>{questionnaire.reference}</Text>
       </View>
-      <TouchableOpacity style={styles.doneBtn} onPress={onDone}>
-        <Text style={styles.doneBtnText}>{t('questionnaireModal.done')}</Text>
-      </TouchableOpacity>
+      <DoneButton label={doneLabel} onPress={onDone} />
     </View>
   );
 };
@@ -284,6 +329,9 @@ const buildInitialAnswers = (items) => {
       case 'duration_min': a[item.id] = item.defaultValue ?? 0; break;
       case 'number':       a[item.id] = item.defaultValue ?? (item.min ?? 0); break;
       case 'scale_0_10':   a[item.id] = item.defaultValue ?? 5; break;
+      // Light History inputs start empty so they cannot be clicked through.
+      // A month_year item may opt in to "this month" with defaultValue: 'now'.
+      case 'month_year':   a[item.id] = item.defaultValue === 'now' ? currentMonthYear() : null; break;
       default:             a[item.id] = null; break;
     }
   }
@@ -297,40 +345,74 @@ const isAnswered = (item, value) => {
     case 'number':
     case 'scale_0_10': return value !== null && value !== undefined;
     case 'yes_no':     return value === 'yes' || value === 'no';
+    case 'country':    return typeof value === 'string' && value.length > 0;
+    case 'year_range': return isValidYearRange(value);
+    case 'month_year': return isValidMonthYear(value);
+    case 'months_or_whole_life': return isValidMonthsOrWholeLife(value);
     default:           return value !== null && value !== undefined;
   }
 };
 
+const OPTION_LIST_TYPES = [
+  'scale_0_3', 'scale_0_4', 'scale_1_10', 'single_choice', 'frequency_3', 'frequency_4',
+];
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function QuestionnaireScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id, flow } = useLocalSearchParams();
+  const inScreening = flow === 'screening';
+  const { refresh } = useEntries();
 
   const questionnaire = QUESTIONNAIRES.find((q) => q.id === id);
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  const scrollRef = useRef(null);
 
   const [answers, setAnswers]           = useState({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [result, setResult]             = useState(null);
   const [resultsUnlocked, setResultsUnlocked] = useState(false);
+  const [alreadyDone, setAlreadyDone]   = useState(null);   // null while checking
+  const [status, setStatus]             = useState(null);   // screening progress
+  const [saving, setSaving]             = useState(false);
 
   useEffect(() => {
     loadEntries().then((entries) => {
       const count = entries.filter((e) => e.type === 'morning').length;
-      setResultsUnlocked(count >= 14);
+      setResultsUnlocked(count >= MIN_ENTRIES_FOR_REPORT);
     });
   }, []);
 
   useEffect(() => {
-    if (questionnaire) {
-      setAnswers(buildInitialAnswers(questionnaire.items));
-      setCurrentIndex(0);
-      setResult(null);
-    }
+    if (!questionnaire) return undefined;
+    setAnswers(buildInitialAnswers(questionnaire.items));
+    setCurrentIndex(0);
+    setResult(null);
+    setSaving(false);
+    setAlreadyDone(null);
+    let cancelled = false;
+    Promise.all([loadQuestionnaire(questionnaire.id), loadAllQuestionnaires()]).then(([existing, all]) => {
+      if (cancelled) return;
+      setAlreadyDone(!!existing && questionnaire.locked === true);
+      setStatus(getScreeningStatus(all));
+    });
+    return () => { cancelled = true; };
   }, [id]);
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [currentIndex]);
+
   if (!questionnaire) return null;
+
+  if (alreadyDone === null) {
+    return (
+      <View style={styles.root}>
+        <View style={styles.bgContainer}><ScreenBackground variant="home" /></View>
+      </View>
+    );
+  }
 
   const items        = questionnaire.items;
   const total        = items.length;
@@ -338,18 +420,43 @@ export default function QuestionnaireScreen() {
   const currentValue = answers[item?.id];
   const canProceed   = item ? isAnswered(item, currentValue) : false;
 
+  const doneLabel = inScreening
+    ? (status && status.nextId ? t('appText.screeningNext') : t('appText.screeningFinish'))
+    : t('questionnaireModal.done');
+
+  const handleDone = async () => {
+    if (inScreening) {
+      const all = await loadAllQuestionnaires();
+      const { nextId, complete } = getScreeningStatus(all);
+      if (!complete && nextId) {
+        router.replace({ pathname: '/QuestionnaireScreen', params: { id: nextId, flow: 'screening' } });
+        return;
+      }
+      await refresh();
+      router.replace('/(tabs)/home');
+      return;
+    }
+    await refresh();
+    router.back();
+  };
+
   const handleNext = async () => {
-    if (!canProceed) return;
+    if (!canProceed || saving) return;
     if (currentIndex < total - 1) {
       setCurrentIndex((i) => i + 1);
-    } else {
-      try {
-        const score = questionnaire.score(answers);
-        const saved = await saveQuestionnaire(questionnaire.id, answers, score);
-        setResult(saved);
-      } catch (e) {
-        console.error('[QuestionnaireScreen] score/save failed:', e);
-      }
+      return;
+    }
+    setSaving(true);
+    try {
+      const score = questionnaire.score(answers);
+      const saved = await saveQuestionnaire(questionnaire.id, answers, score);
+      const all = await loadAllQuestionnaires();
+      setStatus(getScreeningStatus(all));
+      await refresh();
+      setResult(saved);
+    } catch (e) {
+      console.error('[QuestionnaireScreen] score/save failed:', e);
+      setSaving(false);
     }
   };
 
@@ -369,7 +476,7 @@ export default function QuestionnaireScreen() {
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{questionnaire.shortTitle}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} accessibilityLabel="Close">
           <Ionicons name="close" size={26} color="#1E3A5F" />
         </TouchableOpacity>
       </View>
@@ -380,28 +487,31 @@ export default function QuestionnaireScreen() {
         </View>
       )}
 
-      {questionnaire.beta && (
+      {inScreening && status && !alreadyDone && (
         <View style={styles.betaBanner}>
-          <Ionicons name="flask-outline" size={15} color="#6B3FA0" />
+          <Ionicons name="clipboard-outline" size={15} color="#6B3FA0" />
           <Text style={[styles.betaBannerText, { fontFamily: FONTS.bodyMedium }]}>
-            {t('questionnaireModal.betaBanner')}
+            {t('appText.screeningProgress', { done: status.done, total: status.total })}
           </Text>
         </View>
       )}
 
-      {result ? (
+      {alreadyDone ? (
+        <LockedScreen doneLabel={doneLabel} onDone={handleDone} />
+      ) : result ? (
         <ResultScreen
           questionnaire={questionnaire}
           score={result.score}
           resultsUnlocked={resultsUnlocked}
-          onDone={() => router.back()}
+          onDone={handleDone}
+          doneLabel={doneLabel}
         />
       ) : (
         <>
           <ProgressBar current={currentIndex + 1} total={total} />
 
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-            {currentIndex === 0 && (
+          <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            {(currentIndex === 0 || questionnaire.repeatInstructions) && (
               <View style={styles.instructionsBox}>
                 <Text style={styles.instructionsText}>{questionnaire.instructions}</Text>
               </View>
@@ -415,8 +525,7 @@ export default function QuestionnaireScreen() {
               </View>
             )}
             <View style={styles.inputArea}>
-              {(item.type === 'scale_0_3' || item.type === 'scale_0_4' || item.type === 'scale_1_10' ||
-                item.type === 'single_choice' || item.type === 'frequency_3' || item.type === 'frequency_4') && (
+              {OPTION_LIST_TYPES.includes(item.type) && (
                 <OptionListInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} options={item.options} />
               )}
               {item.type === 'scale_0_10' && (
@@ -434,6 +543,18 @@ export default function QuestionnaireScreen() {
               {item.type === 'number' && (
                 <NumberInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} min={item.min} max={item.max} unit={item.unit} />
               )}
+              {item.type === 'country' && (
+                <CountryInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} />
+              )}
+              {item.type === 'year_range' && (
+                <YearRangeInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} />
+              )}
+              {item.type === 'month_year' && (
+                <MonthYearInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} />
+              )}
+              {item.type === 'months_or_whole_life' && (
+                <MonthsOrWholeLifeInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} />
+              )}
             </View>
           </ScrollView>
 
@@ -443,9 +564,9 @@ export default function QuestionnaireScreen() {
               <Text style={styles.backBtnText}>{t('questionnaireModal.back')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.nextBtn, !canProceed && styles.nextBtnDisabled]}
+              style={[styles.nextBtn, (!canProceed || saving) && styles.nextBtnDisabled]}
               onPress={handleNext}
-              disabled={!canProceed}
+              disabled={!canProceed || saving}
             >
               <Text style={styles.nextBtnText}>
                 {currentIndex < total - 1 ? t('questionnaireModal.next') : t('questionnaireModal.finish')}
@@ -514,7 +635,7 @@ const styles = StyleSheet.create({
   nextBtnText:     { fontSize: SIZES.body, fontFamily: FONTS.body, color: '#fff' },
   resultContainer: { flex: 1, padding: 24, justifyContent: 'center', gap: 20 },
   resultCard:      { backgroundColor: 'rgba(255,255,255,0.72)', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', padding: 28, alignItems: 'center', gap: 12, shadowColor: '#6B3FA0', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 8, elevation: 3 },
-  resultTitle:    { fontSize: SIZES.sectionTitle, fontFamily: FONTS.heading, color: '#1E3A5F' },
+  resultTitle:    { fontSize: SIZES.sectionTitle, fontFamily: FONTS.heading, color: '#1E3A5F', textAlign: 'center' },
   scoreBadge:     { flexDirection: 'row', alignItems: 'baseline', gap: 4, borderWidth: 1.5, borderRadius: 16, paddingHorizontal: 24, paddingVertical: 10, marginVertical: 4 },
   scoreNumber:    { fontSize: 52, fontFamily: FONTS.heading },
   scoreMax:       { fontSize: 22, fontFamily: FONTS.bodyMedium },

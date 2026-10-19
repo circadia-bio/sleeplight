@@ -22,9 +22,14 @@ import EntryCardContent from '../../components/EntryCardContent';
 import { PastEntriesCard, FinalReportCard } from '../../components/BottomCards';
 import DataSafetyBanner from '../../components/DataSafetyBanner';
 
-const EntryCard = ({ type, completed, morningDone, onPress }) => {
+const EntryCard = ({ type, completed, morningDone, screeningDone, onPress }) => {
   const isMorning = type === 'morning';
-  const isLocked  = !isMorning && !morningDone;
+  const screeningLocked = !screeningDone;
+  const isLocked  = screeningLocked || (!isMorning && !morningDone);
+  const lockedReason = screeningLocked ? 'screening' : 'morning';
+  const a11yLabel = screeningLocked
+    ? t('appText.a11yEntryLockedScreening')
+    : t(`entry.a11y.${isMorning ? (completed ? 'morningCompleted' : 'morningStart') : isLocked ? 'eveningLocked' : completed ? 'eveningCompleted' : 'eveningStart'}`);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -33,9 +38,33 @@ const EntryCard = ({ type, completed, morningDone, onPress }) => {
       style={styles.entryCardWrapper}
       accessibilityRole="button"
       accessibilityState={{ disabled: isLocked }}
-      accessibilityLabel={t(`entry.a11y.${isMorning ? (completed ? 'morningCompleted' : 'morningStart') : isLocked ? 'eveningLocked' : completed ? 'eveningCompleted' : 'eveningStart'}`)}
+      accessibilityLabel={a11yLabel}
     >
-      <EntryCardContent type={type} completed={completed} locked={isLocked} />
+      <EntryCardContent type={type} completed={completed} locked={isLocked} lockedReason={lockedReason} />
+    </TouchableOpacity>
+  );
+};
+
+// Purple screening card. Opens the next unfinished instrument; once the whole
+// battery is answered it stays visible as a locked, completed card.
+const ScreeningCard = ({ screening, onPress }) => {
+  const done = screening.complete;
+  const a11yLabel = done
+    ? t('appText.a11yScreeningDone')
+    : screening.done > 0
+      ? t('appText.screeningProgress', { done: screening.done, total: screening.total })
+      : t('appText.a11yScreeningStart');
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={done ? 1 : 0.9}
+      disabled={done}
+      style={styles.entryCardWrapper}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: done }}
+      accessibilityLabel={a11yLabel}
+    >
+      <EntryCardContent type="screening" completed={done} progress={screening} />
     </TouchableOpacity>
   );
 };
@@ -45,7 +74,7 @@ export default function HomeScreen() {
   const insets = useInsets();
   const { height: H } = useWindowDimensions();
   const { showInstructions: showInstructionsParam } = useLocalSearchParams();
-  const { entries, todayStatus, userName, refresh } = useEntries();
+  const { entries, todayStatus, userName, screening, refresh } = useEntries();
   const [showInstructions, setShowInstructions] = useState(false);
   const [showProfile, setShowProfile]           = useState(false);
 
@@ -115,7 +144,10 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionLabel, { fontFamily: FONTS.body }]}>{t('home.newEntry')}</Text>
             <View style={styles.cardsContainer}>
-              <EntryCard type="morning" completed={morningCompleted} morningDone={true}
+              <ScreeningCard
+                screening={screening}
+                onPress={() => router.push({ pathname: '/QuestionnaireScreen', params: { id: screening.nextId, flow: 'screening' } })} />
+              <EntryCard type="morning" completed={morningCompleted} morningDone={true} screeningDone={screening.complete}
                 onPress={() => {
                   const opts = getEntryDateOptions('morning', entries);
                   if (opts) {
@@ -124,7 +156,7 @@ export default function HomeScreen() {
                     router.push({ pathname: '/questionnaire', params: { entryType: 'morning' } });
                   }
                 }} />
-              <EntryCard type="evening" completed={eveningCompleted} morningDone={eveningMorningDone}
+              <EntryCard type="evening" completed={eveningCompleted} morningDone={eveningMorningDone} screeningDone={screening.complete}
                 onPress={() => {
                   const opts = getEntryDateOptions('evening', entries);
                   if (opts) {

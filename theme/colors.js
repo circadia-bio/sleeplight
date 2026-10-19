@@ -56,6 +56,7 @@ export const THEME = {
     entryTitle:          '#A94100',
     entryPill:           'rgba(255,255,255,0.38)',
     entryPillText:       '#8F3600',
+    entryLockedText:     '#8F3600',
     // Entry-complete screen (components/EntryCompleteSplash.jsx)
     splashTitle:         '#C4623F',
     splashBadge:         '#F0A862',
@@ -84,5 +85,18 @@ export const THEME = {
     splashBadge:         '#A2C6E8',
     splashCheck:         '#DD7F5A',
     splashButton:        '#F0A862',
+  },
+  // One-time screening battery (purple, matches QuestionnaireScreen)
+  screening: {
+    primary:             '#6B3FA0',
+    primaryLight:        '#C4A8E0',
+    progressFill:        '#7B52B0',
+    // Entry card (components/EntryCardContent.jsx)
+    entryFrom:           '#B79AD9',
+    entryTo:             '#D8C4EE',
+    entryTitle:          '#3B1F6A',
+    entryPill:           'rgba(255,255,255,0.45)',
+    entryPillText:       '#3B1F6A',
+    entryLockedText:     '#3B1F6A',
   },
 };

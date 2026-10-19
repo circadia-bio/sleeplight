@@ -1,14 +1,16 @@
 /**
  * components/EntryCardContent.jsx
  *
- * Morning / evening entry cards on the Entry tab, rendered in code for every
- * language. Replaces the per-locale PNGs: all text comes from i18n `appText.*`,
- * so a new language only needs strings, not new artwork.
+ * Screening / morning / evening cards on the Home and Diary tabs, rendered in code
+ * for every language. Replaces the per-locale PNGs: all text comes from i18n
+ * `appText.*`, so a new language only needs strings, not new artwork.
  *
  * Props:
- *   type      'morning' | 'evening'
- *   completed entry done for today
- *   locked    evening card only: morning entry not done yet
+ *   type          'screening' | 'morning' | 'evening'
+ *   completed     card's task is done (screening: whole battery; diaries: today's entry)
+ *   locked        card cannot be opened yet
+ *   lockedReason  'morning' (default) | 'screening' — what the participant must do first
+ *   progress      screening only: { done, total }, shown while the battery is part-way through
  *
  * The gradient is drawn with react-native-svg (already a dependency), the same
  * approach as ScreenBackground. Text colours are slightly darker than the old
@@ -22,9 +24,16 @@ import t from '../i18n';
 import { FONTS, SIZES } from '../theme/typography';
 import { THEME } from '../theme/colors';
 
-export default function EntryCardContent({ type, completed = false, locked = false }) {
+export default function EntryCardContent({
+  type,
+  completed = false,
+  locked = false,
+  lockedReason = 'morning',
+  progress = null,
+}) {
+  const screening = type === 'screening';
   const morning = type === 'morning';
-  const th = morning ? THEME.morning : THEME.evening;
+  const th = THEME[type] ?? THEME.evening;
   const p = {
     from: th.entryFrom,
     to: th.entryTo,
@@ -36,12 +45,20 @@ export default function EntryCardContent({ type, completed = false, locked = fal
   const suffix = morning ? 'Morning' : 'Evening';
   const gradId = `entryCardGrad_${type}`;
 
-  const title = t(`appText.${morning ? 'morningCard' : 'eveningCard'}`);
+  const title = screening ? t('appText.screeningCard')
+    : t(`appText.${morning ? 'morningCard' : 'eveningCard'}`);
   const status = locked ? 'locked' : completed ? 'done' : 'pending';
-  const subtitle =
-    status === 'locked' ? t('appText.entryLocked')
-    : status === 'done' ? t(`appText.entryDone${suffix}`)
-    : t(`appText.entryPending${suffix}`);
+
+  let subtitle;
+  if (status === 'locked') {
+    subtitle = lockedReason === 'screening' ? t('appText.entryLockedScreening') : t('appText.entryLocked');
+  } else if (screening) {
+    if (status === 'done') subtitle = t('appText.screeningDone');
+    else if (progress && progress.done > 0) subtitle = t('appText.screeningProgress', { done: progress.done, total: progress.total });
+    else subtitle = t('appText.screeningPending');
+  } else {
+    subtitle = status === 'done' ? t(`appText.entryDone${suffix}`) : t(`appText.entryPending${suffix}`);
+  }
 
   return (
     <View
@@ -61,9 +78,11 @@ export default function EntryCardContent({ type, completed = false, locked = fal
 
       <View style={styles.titleRow}>
         <Text style={[styles.title, { color: p.title }]}>{title}</Text>
-        {morning
-          ? <MaterialCommunityIcons name="weather-sunset-up" size={34} color={p.title} />
-          : <Ionicons name="moon" size={30} color={p.title} />}
+        {screening
+          ? <Ionicons name="clipboard" size={30} color={p.title} />
+          : morning
+            ? <MaterialCommunityIcons name="weather-sunset-up" size={34} color={p.title} />
+            : <Ionicons name="moon" size={30} color={p.title} />}
       </View>
 
       {status === 'locked' ? (
@@ -72,7 +91,7 @@ export default function EntryCardContent({ type, completed = false, locked = fal
         <View style={[styles.pill, { backgroundColor: p.pill }]}>
           {status === 'pending' && <Ionicons name="alert-circle-outline" size={24} color={p.pillText} />}
           <Text style={[styles.pillText, { color: p.pillText }]}>{subtitle}</Text>
-          {status === 'done' && <Ionicons name="checkmark" size={26} color={p.pillText} />}
+          {status === 'done' && <Ionicons name={screening ? 'lock-closed' : 'checkmark'} size={screening ? 22 : 26} color={p.pillText} />}
         </View>
       )}
     </View>
