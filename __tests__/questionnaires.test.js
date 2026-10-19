@@ -1,8 +1,8 @@
 /**
  * __tests__/questionnaires.test.js
  *
- * Unit tests for the score() and interpret() functions of every active
- * one-time research questionnaire defined in data/questionnaires.js.
+ * Unit tests for the score() and interpret() functions of every instrument in
+ * the screening battery defined in data/questionnaires.js.
  *
  * Coverage strategy per instrument:
  *   1. score() with all items at their minimum value
@@ -15,9 +15,152 @@
  *
  * MCTQ tests the MSFsc and social-jetlag (SJL) derivations numerically,
  * and verifies that interpret() selects the right chronotype label.
+ *
+ * GHQ-12 and PANAS store raw item values and return two totals each; the
+ * Light History and Social Media instruments are descriptive only.
  */
 
-import { ESS, ISI, DBAS16, MEQ, PSQI, RUSATED, STOPBANG, MCTQ } from '../data/questionnaires';
+import {
+  ESS, PSQI, MCTQ, GHQ12, PANAS, LIGHTHISTORY, SOCIALMEDIA,
+  QUESTIONNAIRES, SCREENING_IDS, getQuestionnaire,
+} from '../data/questionnaires';
+
+// ─── Registry ─────────────────────────────────────────────────────────────────
+
+describe('screening battery registry', () => {
+  it('lists the Sleep Light instruments in completion order', () => {
+    expect(SCREENING_IDS).toEqual(['ghq12', 'mctq', 'ess', 'psqi', 'panas', 'lighthistory', 'socialmedia']);
+  });
+
+  it('every instrument is locked once completed', () => {
+    for (const q of QUESTIONNAIRES) expect(q.locked).toBe(true);
+  });
+
+  it('every instrument has unique item ids and a credit line', () => {
+    for (const q of QUESTIONNAIRES) {
+      const ids = q.items.map((i) => i.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(q.credit).toBeTruthy();
+    }
+  });
+
+  it('getQuestionnaire finds an instrument by id and returns null otherwise', () => {
+    expect(getQuestionnaire('ess')).toBe(ESS);
+    expect(getQuestionnaire('isi')).toBeNull();
+  });
+
+  it('research-only instruments are flagged noFeedback; scored ones are not', () => {
+    expect([GHQ12, PANAS, LIGHTHISTORY, SOCIALMEDIA].every((q) => q.noFeedback === true)).toBe(true);
+    expect([ESS, PSQI, MCTQ].every((q) => !q.noFeedback)).toBe(true);
+  });
+});
+
+// ─── GHQ-12 ───────────────────────────────────────────────────────────────────
+
+describe('GHQ-12 — items', () => {
+  it('has 12 single-choice items with four options valued 0–3', () => {
+    expect(GHQ12.items).toHaveLength(12);
+    for (const item of GHQ12.items) {
+      expect(item.type).toBe('single_choice');
+      expect(item.options.map((o) => o.value)).toEqual([0, 1, 2, 3]);
+    }
+  });
+});
+
+describe('GHQ-12 — score()', () => {
+  const all = (v) => Object.fromEntries(GHQ12.items.map((i) => [i.id, v]));
+
+  it('returns 0 / 0 when every item is the first option', () => {
+    expect(GHQ12.score(all(0))).toEqual({ likert: 0, ghq: 0 });
+  });
+
+  it('returns 36 / 12 when every item is the last option', () => {
+    expect(GHQ12.score(all(3))).toEqual({ likert: 36, ghq: 12 });
+  });
+
+  it('Likert sums the item values; GHQ scoring counts responses 2 and 3', () => {
+    // 12 items: four 0s, four 1s, two 2s, two 3s → Likert 0+4+4+6 = 14; GHQ = 4
+    const values = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3];
+    const a = Object.fromEntries(GHQ12.items.map((item, i) => [item.id, values[i]]));
+    expect(GHQ12.score(a)).toEqual({ likert: 14, ghq: 4 });
+  });
+
+  it('treats missing items as 0', () => {
+    expect(GHQ12.score({})).toEqual({ likert: 0, ghq: 0 });
+  });
+
+  it('does not show the participant a classification', () => {
+    expect(GHQ12.interpret({ likert: 30, ghq: 10 }).label).toBe('Recorded');
+  });
+});
+
+// ─── PANAS ────────────────────────────────────────────────────────────────────
+
+describe('PANAS — items', () => {
+  it('has 20 single-choice items valued 1–5, in the published order', () => {
+    expect(PANAS.items).toHaveLength(20);
+    expect(PANAS.items[0].text).toBe('Interested');
+    expect(PANAS.items[19].text).toBe('Afraid');
+    for (const item of PANAS.items) {
+      expect(item.options.map((o) => o.value)).toEqual([1, 2, 3, 4, 5]);
+    }
+  });
+});
+
+describe('PANAS — score()', () => {
+  const all = (v) => Object.fromEntries(PANAS.items.map((i) => [i.id, v]));
+
+  it('returns 10 / 10 when every item is 1', () => {
+    expect(PANAS.score(all(1))).toEqual({ pa: 10, na: 10 });
+  });
+
+  it('returns 50 / 50 when every item is 5', () => {
+    expect(PANAS.score(all(5))).toEqual({ pa: 50, na: 50 });
+  });
+
+  it('sums positive items (1,3,5,9,10,12,14,16,17,19) and negative items (2,4,6,7,8,11,13,15,18,20) separately', () => {
+    // Positive items = 5, negative items = 2 → PA 50, NA 20. No reversal.
+    const positive = [1, 3, 5, 9, 10, 12, 14, 16, 17, 19];
+    const a = {};
+    for (let n = 1; n <= 20; n++) a[`panas${n}`] = positive.includes(n) ? 5 : 2;
+    expect(PANAS.score(a)).toEqual({ pa: 50, na: 20 });
+  });
+});
+
+// ─── Light History ────────────────────────────────────────────────────────────
+
+describe('Light History — items', () => {
+  it('uses the four Light History input types, in the order of the study document', () => {
+    expect(LIGHTHISTORY.items.map((i) => i.type)).toEqual([
+      'country', 'year_range', 'month_year', 'months_or_whole_life', 'month_year',
+    ]);
+  });
+
+  it('pre-fills only the study date', () => {
+    expect(LIGHTHISTORY.items.filter((i) => i.defaultValue === 'now').map((i) => i.id)).toEqual(['lh_study_date']);
+  });
+
+  it('has nothing to score', () => {
+    expect(LIGHTHISTORY.score({})).toBeNull();
+  });
+});
+
+// ─── Social Media Usage ───────────────────────────────────────────────────────
+
+describe('Social Media Usage — items', () => {
+  it('has 17 items on the nine-level frequency scale', () => {
+    expect(SOCIALMEDIA.items).toHaveLength(17);
+    for (const item of SOCIALMEDIA.items) {
+      expect(item.options).toHaveLength(9);
+      expect(item.options[0].label).toBe('Never');
+      expect(item.options[8].label).toBe('Hourly or more');
+    }
+  });
+
+  it('has nothing to score', () => {
+    expect(SOCIALMEDIA.score({})).toBeNull();
+  });
+});
 
 // ─── ESS ──────────────────────────────────────────────────────────────────────
 
@@ -54,130 +197,6 @@ describe('ESS — interpret()', () => {
   it('Excessive at score 15', ()    => expect(ESS.interpret(15).label).toBe('Excessive'));
   it('Severe at score 16', ()       => expect(ESS.interpret(16).label).toBe('Severe'));
   it('Severe at score 24', ()       => expect(ESS.interpret(24).label).toBe('Severe'));
-});
-
-// ─── ISI ──────────────────────────────────────────────────────────────────────
-
-describe('ISI — score()', () => {
-  it('returns 0 when all items are 0', () => {
-    const a = {};
-    [1,2,3,4,5,6,7].forEach((n) => { a[`isi${n}`] = 0; });
-    expect(ISI.score(a)).toBe(0);
-  });
-
-  it('returns 28 when all items are 4', () => {
-    const a = {};
-    [1,2,3,4,5,6,7].forEach((n) => { a[`isi${n}`] = 4; });
-    expect(ISI.score(a)).toBe(28);
-  });
-
-  it('sums item values correctly for a mixed response set', () => {
-    // 3+2+1+3+2+1+2 = 14
-    const a = { isi1:3, isi2:2, isi3:1, isi4:3, isi5:2, isi6:1, isi7:2 };
-    expect(ISI.score(a)).toBe(14);
-  });
-
-  it('treats missing items as 0', () => {
-    expect(ISI.score({})).toBe(0);
-  });
-});
-
-describe('ISI — interpret()', () => {
-  it('No clinically significant insomnia at score 0', ()  => expect(ISI.interpret(0).label).toBe('No clinically significant insomnia'));
-  it('No clinically significant insomnia at score 7', ()  => expect(ISI.interpret(7).label).toBe('No clinically significant insomnia'));
-  it('Subthreshold insomnia at score 8', ()               => expect(ISI.interpret(8).label).toBe('Subthreshold insomnia'));
-  it('Subthreshold insomnia at score 14', ()              => expect(ISI.interpret(14).label).toBe('Subthreshold insomnia'));
-  it('Clinical insomnia (moderate) at score 15', ()       => expect(ISI.interpret(15).label).toBe('Clinical insomnia (moderate)'));
-  it('Clinical insomnia (moderate) at score 21', ()       => expect(ISI.interpret(21).label).toBe('Clinical insomnia (moderate)'));
-  it('Clinical insomnia (severe) at score 22', ()         => expect(ISI.interpret(22).label).toBe('Clinical insomnia (severe)'));
-  it('Clinical insomnia (severe) at score 28', ()         => expect(ISI.interpret(28).label).toBe('Clinical insomnia (severe)'));
-});
-
-// ─── DBAS-16 ──────────────────────────────────────────────────────────────────
-
-describe('DBAS-16 — score()', () => {
-  it('returns 0.0 when all items are 0', () => {
-    const a = {};
-    for (let n = 1; n <= 16; n++) a[`dbas${n}`] = 0;
-    expect(DBAS16.score(a)).toBe(0);
-  });
-
-  it('returns 10.0 when all items are 10', () => {
-    const a = {};
-    for (let n = 1; n <= 16; n++) a[`dbas${n}`] = 10;
-    expect(DBAS16.score(a)).toBe(10);
-  });
-
-  it('computes mean item score to 1 decimal place', () => {
-    // All items = 5 → mean = 5.0
-    const a = {};
-    for (let n = 1; n <= 16; n++) a[`dbas${n}`] = 5;
-    expect(DBAS16.score(a)).toBe(5.0);
-  });
-
-  it('rounds correctly for a non-integer mean', () => {
-    // sum = 16 items × varied values totalling 72 → mean = 4.5
-    const a = {};
-    for (let n = 1; n <= 16; n++) a[`dbas${n}`] = n <= 8 ? 4 : 5; // 8×4 + 8×5 = 72
-    expect(DBAS16.score(a)).toBe(4.5);
-  });
-
-  it('treats missing items as 0 in mean', () => {
-    // Only dbas1 = 8, rest missing (treated as 0) → 8/16 = 0.5
-    expect(DBAS16.score({ dbas1: 8 })).toBe(0.5);
-  });
-});
-
-describe('DBAS-16 — interpret()', () => {
-  it('Within normal range at score 0',           () => expect(DBAS16.interpret(0).label).toBe('Within normal range'));
-  it('Within normal range at score 4',           () => expect(DBAS16.interpret(4).label).toBe('Within normal range'));
-  it('Clinically relevant at score 4.1',         () => expect(DBAS16.interpret(4.1).label).toBe('Clinically relevant'));
-  it('Clinically relevant at score 10',          () => expect(DBAS16.interpret(10).label).toBe('Clinically relevant'));
-});
-
-// ─── MEQ ──────────────────────────────────────────────────────────────────────
-
-describe('MEQ — score()', () => {
-  it('sums all item values correctly', () => {
-    // Build a known-score response: all items at their minimum option value
-    // meq1–18 vary; meq19 minimum = 0. Minimum possible total = 18 (items 1–18 each
-    // contribute their lowest available option) + 0 (meq19) = depends on item options.
-    // Use a flat answer of 1 for items 1–18 and 0 for meq19 → sum = 18
-    const a = {};
-    for (let n = 1; n <= 18; n++) a[`meq${n}`] = 1;
-    a['meq19'] = 0;
-    expect(MEQ.score(a)).toBe(18);
-  });
-
-  it('treats missing items as 0', () => {
-    expect(MEQ.score({})).toBe(0);
-  });
-
-  it('returns 86 for a fully morning-type response (max options per item)', () => {
-    // Published MEQ maximum is 86 (Horne & Östberg, 1976).
-    // Items 11 and 12 use non-sequential scoring (6/4/2/0 and 0/2/3/5 respectively)
-    // per the original paper.
-    const maxA = {
-      meq1: 5, meq2: 5, meq3: 4, meq4: 4, meq5: 4,
-      meq6: 4, meq7: 4, meq8: 4, meq9: 4, meq10: 5,
-      meq11: 6, meq12: 5, meq13: 4, meq14: 4, meq15: 4,
-      meq16: 4, meq17: 5, meq18: 5, meq19: 6,
-    };
-    expect(MEQ.score(maxA)).toBe(86);
-  });
-});
-
-describe('MEQ — interpret()', () => {
-  it('Definite evening type at score 16',   () => expect(MEQ.interpret(16).label).toBe('Definite evening type'));
-  it('Definite evening type at score 30',   () => expect(MEQ.interpret(30).label).toBe('Definite evening type'));
-  it('Moderate evening type at score 31',   () => expect(MEQ.interpret(31).label).toBe('Moderate evening type'));
-  it('Moderate evening type at score 41',   () => expect(MEQ.interpret(41).label).toBe('Moderate evening type'));
-  it('Intermediate type at score 42',       () => expect(MEQ.interpret(42).label).toBe('Intermediate type'));
-  it('Intermediate type at score 58',       () => expect(MEQ.interpret(58).label).toBe('Intermediate type'));
-  it('Moderate morning type at score 59',   () => expect(MEQ.interpret(59).label).toBe('Moderate morning type'));
-  it('Moderate morning type at score 69',   () => expect(MEQ.interpret(69).label).toBe('Moderate morning type'));
-  it('Definite morning type at score 70',   () => expect(MEQ.interpret(70).label).toBe('Definite morning type'));
-  it('Definite morning type at score 86',   () => expect(MEQ.interpret(86).label).toBe('Definite morning type'));
 });
 
 // ─── PSQI ─────────────────────────────────────────────────────────────────────
@@ -316,81 +335,12 @@ describe('PSQI — score() global reference cases', () => {
 });
 
 describe('PSQI — interpret()', () => {
-  it('Good sleep quality at score 0',          () => expect(PSQI.interpret(0).label).toBe('Good sleep quality'));
-  it('Good sleep quality at score 4',          () => expect(PSQI.interpret(4).label).toBe('Good sleep quality'));
-  it('Poor sleep quality at score 5',          () => expect(PSQI.interpret(5).label).toBe('Poor sleep quality'));
-  it('Poor sleep quality at score 10',         () => expect(PSQI.interpret(10).label).toBe('Poor sleep quality'));
-  it('Severe sleep difficulties at score 11',  () => expect(PSQI.interpret(11).label).toBe('Severe sleep difficulties'));
-  it('Severe sleep difficulties at score 21',  () => expect(PSQI.interpret(21).label).toBe('Severe sleep difficulties'));
-});
-
-// ─── RU-SATED ─────────────────────────────────────────────────────────────────
-
-describe('RU-SATED — score()', () => {
-  it('returns 0 when all items are 0', () => {
-    const a = {};
-    for (let n = 1; n <= 6; n++) a[`rus${n}`] = 0;
-    expect(RUSATED.score(a)).toBe(0);
-  });
-
-  it('returns 24 when all items are 4', () => {
-    const a = {};
-    for (let n = 1; n <= 6; n++) a[`rus${n}`] = 4;
-    expect(RUSATED.score(a)).toBe(24);
-  });
-
-  it('sums item values correctly', () => {
-    // 0+1+2+3+4+2 = 12
-    const a = { rus1:0, rus2:1, rus3:2, rus4:3, rus5:4, rus6:2 };
-    expect(RUSATED.score(a)).toBe(12);
-  });
-
-  it('treats missing items as 0', () => {
-    expect(RUSATED.score({})).toBe(0);
-  });
-});
-
-describe('RU-SATED — interpret()', () => {
-  it('Poor sleep health at score 0',      () => expect(RUSATED.interpret(0).label).toBe('Poor sleep health'));
-  it('Poor sleep health at score 8',      () => expect(RUSATED.interpret(8).label).toBe('Poor sleep health'));
-  it('Moderate sleep health at score 9',  () => expect(RUSATED.interpret(9).label).toBe('Moderate sleep health'));
-  it('Moderate sleep health at score 16', () => expect(RUSATED.interpret(16).label).toBe('Moderate sleep health'));
-  it('Good sleep health at score 17',     () => expect(RUSATED.interpret(17).label).toBe('Good sleep health'));
-  it('Good sleep health at score 24',     () => expect(RUSATED.interpret(24).label).toBe('Good sleep health'));
-});
-
-// ─── STOP-BANG ────────────────────────────────────────────────────────────────
-
-describe('STOP-BANG — score()', () => {
-  it('returns 0 when all answers are "no"', () => {
-    const a = { sb_s:'no', sb_t:'no', sb_o:'no', sb_p:'no', sb_b:'no', sb_a:'no', sb_n:'no', sb_g:'no' };
-    expect(STOPBANG.score(a)).toBe(0);
-  });
-
-  it('returns 8 when all answers are "yes"', () => {
-    const a = { sb_s:'yes', sb_t:'yes', sb_o:'yes', sb_p:'yes', sb_b:'yes', sb_a:'yes', sb_n:'yes', sb_g:'yes' };
-    expect(STOPBANG.score(a)).toBe(8);
-  });
-
-  it('counts only "yes" answers', () => {
-    // 3 yes, 5 no
-    const a = { sb_s:'yes', sb_t:'no', sb_o:'yes', sb_p:'no', sb_b:'yes', sb_a:'no', sb_n:'no', sb_g:'no' };
-    expect(STOPBANG.score(a)).toBe(3);
-  });
-
-  it('treats missing or non-yes values as 0', () => {
-    expect(STOPBANG.score({})).toBe(0);
-    expect(STOPBANG.score({ sb_s: undefined, sb_t: null })).toBe(0);
-  });
-});
-
-describe('STOP-BANG — interpret()', () => {
-  it('Low OSA risk at score 0',          () => expect(STOPBANG.interpret(0).label).toBe('Low OSA risk'));
-  it('Low OSA risk at score 2',          () => expect(STOPBANG.interpret(2).label).toBe('Low OSA risk'));
-  it('Intermediate OSA risk at score 3', () => expect(STOPBANG.interpret(3).label).toBe('Intermediate OSA risk'));
-  it('Intermediate OSA risk at score 4', () => expect(STOPBANG.interpret(4).label).toBe('Intermediate OSA risk'));
-  it('High OSA risk at score 5',         () => expect(STOPBANG.interpret(5).label).toBe('High OSA risk'));
-  it('High OSA risk at score 8',         () => expect(STOPBANG.interpret(8).label).toBe('High OSA risk'));
+  it('Good sleep quality at score 0', ()         => expect(PSQI.interpret(0).label).toBe('Good sleep quality'));
+  it('Good sleep quality at score 4', ()         => expect(PSQI.interpret(4).label).toBe('Good sleep quality'));
+  it('Poor sleep quality at score 5', ()         => expect(PSQI.interpret(5).label).toBe('Poor sleep quality'));
+  it('Poor sleep quality at score 10', ()        => expect(PSQI.interpret(10).label).toBe('Poor sleep quality'));
+  it('Severe sleep difficulties at score 11', () => expect(PSQI.interpret(11).label).toBe('Severe sleep difficulties'));
+  it('Severe sleep difficulties at score 21', () => expect(PSQI.interpret(21).label).toBe('Severe sleep difficulties'));
 });
 
 // ─── MCTQ ─────────────────────────────────────────────────────────────────────

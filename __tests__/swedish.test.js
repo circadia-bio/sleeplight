@@ -41,7 +41,11 @@ describe('Swedish translations', () => {
   it.each([
     ['morning', MORNING_QUESTIONS, MORNING_QUESTIONS_SV],
     ['evening', EVENING_QUESTIONS, EVENING_QUESTIONS_SV],
-  ])('covers all %s diary text without overriding stored IDs, controls or values', (_, source, translated) => {
+  ])('covers all %s diary text without overriding stored IDs, controls or values', (_, allSource, translated) => {
+    // Sleep Light questionnaire items (KSS, media usage, PANAS, PROMIS) carry a `section`.
+    // Like the one-time research instruments they stay in English, so only the
+    // sleep-diary questions are translated.
+    const source = allSource.filter((q) => !q.section);
     expect(translated.map((q) => q.id)).toEqual(source.map((q) => q.id));
     source.forEach((q, index) => {
       const localized = translated[index];
@@ -70,7 +74,9 @@ describe('Swedish translations', () => {
         for (const field of ['id', 'number', 'type', 'defaultValue', 'conditionalOn', 'followUp', 'optional', 'min', 'max']) {
           expect(q[field]).toEqual(original[field]);
         }
-        expect(q.text).not.toBe(original.text);
+        // Sleep-diary questions are translated; questionnaire sections stay English.
+        if (original.section) expect(q.text).toBe(original.text);
+        else expect(q.text).not.toBe(original.text);
       });
     }
   });
