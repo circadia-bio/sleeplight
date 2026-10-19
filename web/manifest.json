@@ -1,7 +1,7 @@
 {
-  "name": "Sleep Diaries",
-  "short_name": "Sleep Diaries",
-  "description": "Open-source sleep diary app for clinical research — morning & evening questionnaires, sleep metrics, and data export.",
+  "name": "Sleep Light",
+  "short_name": "Sleep Light",
+  "description": "Open-source sleep research app — screening questionnaires, morning & evening diaries, and data export.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

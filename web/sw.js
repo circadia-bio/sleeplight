@@ -1,9 +1,9 @@
 /**
- * Service worker for Sleep Diaries PWA.
+ * Service worker for Sleep Light PWA.
  * Strategy: cache-first for assets, network-first for navigation.
  * This allows the app to work offline after first load.
  */
-const CACHE = 'sleep-diaries-__VERSION__';
+const CACHE = 'sleep-light-__VERSION__';
 
 const PRECACHE = [
   '/',
