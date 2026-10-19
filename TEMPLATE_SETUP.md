@@ -1,74 +1,81 @@
-# Setting up your SleepDiaries Protocol fork
+# Sleep Light — fork setup status
 
-This repo was seeded from a tagged release of [SleepDiaries](https://github.com/circadia-bio/SleepDiaries). A few things were stripped out or auto-cleaned during initialization (analytics, citation metadata, the original deployment script, some README badges/links) — here's what to do next to make this yours.
+This repo was seeded from the SleepDiaries protocol template (v1.2.0). This file tracks what has been done to make it Sleep Light and what is still open. Delete it when the open items are closed.
+
+Legend: ✅ done · ⬜ still to do
 
 ## 1. Rename the app
 
-- `app.json` — update `name`, `slug`, `scheme`, and bundle identifiers (`ios.bundleIdentifier`, `android.package`)
-- `package.json` — update `name`
-- Search the codebase for remaining "Sleep Diaries" strings in UI copy (`i18n/en.js`, `i18n/pt-BR.js`, `i18n/sv.js`) and swap for your study/app name
-- Keep only the languages you need. To drop one, delete its file in `i18n/` and `data/` (e.g. `i18n/sv.js`, `data/questions.sv.js`), remove it from `i18n/index.js` and `data/useQuestions.js`, and update the tests that load it (`__tests__/swedish.test.js`, `__tests__/i18nKeys.test.js`)
+- ✅ `app.json`: `name` "Sleep Light", `slug` `sleep-light`, `scheme` `sleep-light`, bundle identifiers `com.circadia.sleeplight`
+- ✅ `package.json`: `name` `sleeplight`, version `0.1.0`
+- ✅ Brand text in `i18n/en.js`, `i18n/pt-BR.js`, `i18n/sv.js`, the PWA manifest, `web/index.html`, the service-worker cache name and the shareable report image
+- ⬜ Search the code for any remaining old names (the strings above were found by reading, not by search):
+  ```bash
+  grep -rniE "sleep ?diaries|sleep-diaries" --include=*.js --include=*.jsx --include=*.json --include=*.html . \
+    --exclude-dir=node_modules --exclude-dir=docs --exclude=package-lock.json
+  ```
+  Mentions that credit SleepDiaries as the source (README citation, CHANGELOG, this file) are intentional.
+- ⬜ Run `npm install` once so `package-lock.json` picks up the new name and version
+- ⬜ Keep only the languages you need, or leave all three. Dropping one means deleting its files in `i18n/` and `data/` and updating `i18n/index.js`, `data/useQuestions.js`, `__tests__/swedish.test.js` and `__tests__/i18nKeys.test.js`
 
-## 2. Finish cleaning up the README
+## 2. README
 
-Seeding already removed the badges that only made sense on the original repo (Tests, DOI, Last commit, Issues, PRs) and dropped the live `sleepdiaries.circadia-lab.uk` links. A banner at the top marks this as inherited content. A few things still need a human decision, since they're not safe to strip automatically:
-
-- **Title & description** — still says "Sleep Diaries"; update once you've renamed the app
-- **Citation / Authors / Design Acknowledgement sections** — credit the original SleepDiaries team; keep these as attribution for the underlying work, but add your own name/study if you're publishing under a new name
-- **Related Tools section** — links to other circadia-bio repos; remove if not relevant to your fork
-- **Roadmap** — reflects the original project's history, not yours; replace with your own or remove
-- **Installing as an App section** — the iOS/Android/desktop instructions still reference `sleepdiaries.circadia-lab.uk` as the example URL; update once you have your own deployed URL
-- **Release workflow section** — describes Circadia Lab's own release process; seeding replaced it with a short pointer. Delete it, or write your own
-- Once you've been through it, delete the inherited banner at the top
+- ✅ Rewritten for Sleep Light, with SleepDiaries credited as the source
+- ⬜ Confirm the repository URL used in the clone command (`github.com/circadia-bio/sleeplight`)
+- ⬜ Add a Zenodo DOI and badge once Sleep Light has its own
 
 ## 3. Rebrand
 
-- `theme/colors.js` — the colour palette, the green/amber/red report colours, and the morning (amber) and evening (blue) looks used by the questionnaire, the entry cards and the completion screen. `theme/typography.js` has the fonts. Swap them or keep the defaults if they suit your study (check text contrast if you change them)
-- `assets/` — replace the app icon, splash screens, and social preview image (`social.png`). The entry cards and completion screen are drawn in code, so no per-language artwork is needed
-- `header.png`, `screens.png` — used in the README; replace or remove
+- ✅ `theme/colors.js` has the purple screening look next to the morning (amber) and evening (blue) looks
+- ⬜ Replace `header.png`, `screens.png` (used in the README) and `assets/images/social.png` (social preview) if they still show SleepDiaries
+- ⬜ Replace the app icon and splash images in `assets/` and the PWA icons and splash screens in `web/` if you want Sleep Light artwork
 
-## 4. Reconfigure deployment
+## 4. Deployment
 
-The original `scripts/deploy.sh` (which handled PWA meta injection, Fathom analytics, and Netlify redirects) was removed since it pointed at the original lab's domain and analytics account. You'll need to:
+- ✅ `scripts/deploy.sh` written. App name and site address are the variables at the top
+- ⬜ Confirm the site address. It is currently `https://sleeplight.circadia-lab.uk` in three places: `scripts/deploy.sh`, `web/index.html` (preview tags) and `app/final-report.jsx` (`SITE_HOST`, printed on the shareable report image)
+- ⬜ `app.json` still has `web.baseUrl` set to `/SleepDiaries` and `scripts/fix-paths.js` still uses the same base. They were inherited unchanged; check them against the way you host the app
+- ⬜ Decide on analytics (the original used Fathom; none is configured here)
 
-- Write your own build/deploy script, or adapt the [original](https://github.com/circadia-bio/SleepDiaries/blob/main/scripts/deploy.sh) for your own domain and hosting
-- The original script also has a production-branch guard (it refuses to deploy unless you are on a `release` branch, and checks Netlify's build context). That is a Circadia Lab convention: keep it, rename the branch, or drop it when you adapt the script
-- Set up your own analytics if you want it (Fathom, Plausible, or none)
-- Update `web/manifest.json` with your own app name and icons
+## 5. CI (optional)
 
-## 5. Add your own CI (optional)
+- ⬜ No GitHub Actions are set up. If you want them, add a workflow that runs `npm test` and a web build check (`npx expo export -p web`)
 
-The original repo's `.github/workflows/` (tests, deploy pipeline) were stripped out during seeding — partly because they're lab-specific, and partly because GitHub's default Actions token is never allowed to push changes under `.github/workflows/` on your behalf, so they couldn't have been carried over automatically anyway. If you want CI, add your own workflow files once you've set up the repo. The original also runs a web build check (`expo export -p web`) next to the Jest tests, and has an *Open release PR* workflow for its release branch; both are worth copying if you want the same safety net.
+## 6. Questionnaires
 
-## 6. Decide which questionnaires to keep
+- ✅ The one-time questionnaires are now the screening battery: GHQ-12, MCTQ, ESS, PSQI, PANAS, Light History and Social Media Usage. They are defined in `data/questionnaires.js`, run by `app/QuestionnaireScreen.jsx`, and gate the diaries (`utils/screening.js`)
+- ✅ ISI, DBAS-16, MEQ, RU-SATED, STOP-BANG and the one-time KSS were removed. KSS is now in the diaries
+- ⬜ **GHQ-12 licence**: it is a licensed instrument (GL Assessment). Get permission before using it in the study
+- ⬜ **Social Media Usage source**: the study document does not name the instrument. Fill in `credit` and `reference` in `data/questionnaires.js`
+- ⬜ **Credits for the diary scales**: add KSS and PROMIS attribution. The credits screen only lists the screening instruments
+- ⬜ **PANAS scoring**: the app stores raw answers and totals positive and negative affect separately. The study document lists items to reverse-score (2, 4, 7, 8, 11, 13, 15, 18, 20, with item 6 missing); decide how that should be applied at analysis time
+- ⬜ **PROMIS 8a** repeats two items that are also in 4a and 7a. Check this against the official item banks
 
-SleepDiaries ships with 8 validated instruments: ESS, ISI, DBAS-16, MEQ, PSQI, RU-SATED, STOP-BANG, MCTQ. If your study doesn't need all of them, they're implemented independently in `app/questionnaire.jsx` and scored in `storage/storage.js` — check the [SleepDiaries README](https://github.com/circadia-bio/SleepDiaries) for how each one is wired in before removing.
+## 7. Reference ranges and age group
 
-## 7. Review the reference ranges and age group
+Unchanged from the template. The final report colours sleep duration, onset latency and WASO against published ranges (`utils/referenceRanges.js`), chosen by an optional age group that is stored on the device only and is not exported.
 
-The final report colours sleep duration, sleep onset latency and wake after sleep onset against published reference ranges. They depend on an optional **age group** (under 18, 18–64, 65 or over) that participants can set during onboarding or in their Profile.
+- ⬜ Check the ranges suit your population. With no age group set, the 18–64 ranges are used (`DEFAULT_AGE_BAND`)
+- ⬜ Decide whether to keep the age question in onboarding and the Profile
 
-- All the numbers live in `utils/referenceRanges.js`, with their sources in the header comment (National Sleep Foundation duration recommendations, Hirshkowitz et al., 2015; NSF sleep quality consensus, Ohayon et al., 2017). Check that they suit your population before you show reports to participants
-- With no age group set, the 18–64 ranges are used. For an adolescent-only study, set `DEFAULT_AGE_BAND` to `'under18'` in that file
-- To drop the age question entirely, remove `AgeBandPicker` from `app/index.jsx` and `app/ProfileModal.jsx`; nothing else depends on it being set
-- The age group is stored on the device only and is deliberately not included in CSV/JSON exports. If you need it for analysis, add it to the export and update your ethics documentation accordingly
+## 8. Data-safety reminders
 
-## 8. Review the data-safety reminders
+Unchanged from the template. The Home tab nudges participants to install the PWA and to export a backup (rules in `utils/dataSafety.js`, card in `components/DataSafetyBanner.jsx`).
 
-Entries live only on the participant's device, so the Home tab nudges participants to install the PWA (web, on phones) and to export a backup (after 7 entries with no export for 14 days). The rules are in `utils/dataSafety.js` and the card is `components/DataSafetyBanner.jsx`. Adjust the thresholds, edit the `dataSafety` strings in `i18n/`, or remove `<DataSafetyBanner />` from `app/(tabs)/home.jsx` if your study collects data differently (for example, if participants never export).
+- ⬜ Adjust the thresholds or remove `<DataSafetyBanner />` from `app/(tabs)/home.jsx` if participants will not export
 
 ## 9. Citation
 
-The original `CITATION.cff` was removed since it credits the SleepDiaries research team specifically. If you publish work using this adapted app, please still credit the original project:
+The original `CITATION.cff` was removed during seeding. The README cites SleepDiaries (`10.5281/zenodo.19683378`).
 
-> França, L.G.S. et al. SleepDiaries. https://github.com/circadia-bio/SleepDiaries
+- ⬜ Add a `CITATION.cff` for Sleep Light once you have a DOI, and keep crediting SleepDiaries
 
-Add your own `CITATION.cff` for your fork if appropriate.
+## 10. Known behaviour to be aware of
 
-## 10. Clean up
-
-Once you've been through this checklist, delete this file. The `.github/workflows/init-from-version.yml` workflow no longer exists at this point — it removes itself after running — so you're free to add your own CI.
+- The screening lock lives on the device. Logging out, deleting the account or importing with *Replace* clears or overwrites the results, which unlocks the diaries again
+- The new questionnaire sections in the diaries stay in English in Swedish and Portuguese
+- The evening diary now has about 46 extra one-per-screen questions (KSS, PANAS and PROMIS)
 
 ---
 
-Questions about the underlying app structure? See the [SleepDiaries repo](https://github.com/circadia-bio/SleepDiaries) or open an issue there.
+Questions about the underlying app structure? See the [SleepDiaries repo](https://github.com/circadia-bio/SleepDiaries).

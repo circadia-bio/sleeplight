@@ -1,229 +1,42 @@
 # Changelog
 
-All notable changes to Sleep Diaries will be documented in this file.
+All notable changes to Sleep Light will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Sleep Light was forked from [SleepDiaries v1.2.0](https://github.com/circadia-bio/SleepDiaries/releases/tag/v1.2.0). The history of the original app is in that repository's changelog.
+
 ---
 
-## [1.2.0] — 2026-10-19
+## [0.1.0] — 2026-10-19
+
+First version of Sleep Light.
 
 ### Added
 
-- **Swedish localisation**: UI, daily diary questions and instructions are available in Swedish (translation by Jonatan Nyberg). The one-time research questionnaires stay in English, with a note explaining that no validated Swedish version is included
-- **Sleep pattern actogram**: the final report opens with a weekly chart showing each night from bedtime to out-of-bed time, night-waking markers and a dashed sleep-midpoint trend line; days with no entry stay visible as gaps
-- **Age-specific reference ranges**: an optional age group (under 18, 18–64, 65 or over) can be set during onboarding or edited in the Profile. It adjusts the green/amber/red bands for sleep duration, sleep onset latency and WASO, and **Settings → Sleep metric thresholds** now lists the ranges for the chosen group. The age group is stored on the device only and is not included in exports. All ranges live in `utils/referenceRanges.js`
-- **Release workflow**: production now deploys from a `release` branch. The *Open release PR* GitHub Action opens a pull request from a snapshot of a version tag, and `deploy.sh` refuses production builds from any other branch
-- **Tests**: Swedish locale completeness and a reference-range suite that pins the adult band to the previous thresholds
-- **Data-safety reminders**: entries live only on the device, so the Home tab now offers a dismissible reminder to install the PWA (touch browsers, after the first entry) and to export a backup (after 7 entries with no export for 14 days). On the web the browser is also asked to keep storage persistent
-- **Translation-key tests and a web build check in CI**: a test fails if code uses a translation key that does not exist or if Swedish or Portuguese lack an English key, and the build now also bundles the web app so a broken import or missing asset fails before Netlify
+- **Screening battery**: seven one-time questionnaires completed before the diaries unlock, in this order: GHQ-12, MCTQ, ESS, PSQI, PANAS, Light History Information and Social Media Usage. Each is saved as soon as it is finished, so a participant can stop and resume at the next unfinished questionnaire
+- **Screening card on Home** (purple, matching the questionnaire screens) showing progress ("3 of 7 questionnaires done") and opening the next unfinished questionnaire. It stays on Home as a locked, completed card afterwards
+- **Diary gate**: the morning and evening diaries stay locked until the screening battery is complete. This applies on Home, on the Diary tab and when opening a diary directly
+- **Locked once answered**: a completed screening questionnaire cannot be redone. The questionnaire list shows a lock instead of "Redo", and re-opening one shows a notice
+- **Light History inputs**: type-to-search country list, from/to year steppers, month and year steppers, and months-or-"Whole life". They start empty so they cannot be clicked through on a default. The study date is pre-filled with the current month
+- **GHQ-12** stores the raw item values and computes both the Likert total (0–36) and the GHQ-scored total (0–12). Participants are not shown a classification
+- **PANAS** (screening and evening diary) stores the raw 1–5 answers and computes positive-affect and negative-affect totals (10–50 each), with no reversal. The wording and scale are shared between both uses (`data/panas.js`)
+- **Morning diary additions**: KSS (9-point), media use in the two hours before sleep (six items), and yes/no questions about texts and calls after lights-out. The comments box stays last
+- **Evening diary additions**: KSS, PANAS and PROMIS social function short forms 4a, 6a, 7a and 8a, followed by the sleep diary. Each section shows a label such as "PANAS · 7/20" and keeps its instruction at the top of every page
+- **Tests**: scoring and structure for the new instruments, screening progress, the extra diary questions and CSV export of the new answer shapes
 
 ### Changed
 
-- **Entry cards and completion screen are drawn in code** for every language, replacing the locale-specific PNG artwork. Text now scales with Bigger Text, and a new language only needs strings. Title and pill colours were darkened slightly to improve contrast
-- **Final report summary card** redesigned: participant identity, a localised date range and three count tiles that use the full width
-- **Latency and WASO colour bands now follow the NSF sleep-quality consensus** (Ohayon et al., 2017, *Sleep Health*, 3(1), 6–19). For adults, sleep onset latency is green up to 30 min (previously 15), amber 31–45 min and red above 45 min (previously red above 30), and WASO is amber at 21–40 min and red from 41 min (previously red above 30). Teenage and 65+ ranges follow the paper’s age groups; the paper gives no “poor” level of WASO for 65+, so that band is amber and never red
-- **Decimal separators** in the final report follow the device language in every locale (e.g. “7,5” in Portuguese and Swedish)
-- **Portuguese (Brazil)**: reminder notifications, report sharing, import error messages and the completion screen are now translated
-- **Readable grey text**: hints, captions and reference texts use a darker grey (`#64748B`, about 4.8:1 on white instead of 2.6:1), and input placeholders were darkened to match
-- **Central colour theme**: the morning/evening looks, report status colours and muted-text grey now live in `theme/colors.js`
-- **Sleep-metric glossary** now matches the age-specific ranges (teenagers 8–10 h, adults 7–9 h, 65+ 7–8 h; latency up to 30 min at any age)
+- **App renamed to Sleep Light**: app name, slug, URL scheme, bundle identifiers (`com.circadia.sleeplight`), PWA manifest, service-worker cache name, web page tags and the brand text in the English, Portuguese and Swedish strings
+- **Deploy script** (`scripts/deploy.sh`) added for Sleep Light. It takes the app name and site address from two variables at the top and does not include analytics
+- **Past entries** label questionnaire items by section and show the chosen option instead of "n/5"
+- **Final report** lists only the scored screening questionnaires (ESS, PSQI, MCTQ). GHQ-12, PANAS, Light History and Social Media Usage are research-only and are not shown back to participants
+- **Swedish and Portuguese**: the new questionnaire items stay in English, like the other research instruments. The Swedish test now expects this
 
 ### Fixed
 
-- **Actogram Y-axis labels clipped in browsers**: the time axis could be squeezed by the scrolling chart beside it; it now has a fixed width
-- **Home tab entry cards**: square bottom corners and extra spacing caused by a stale fixed-aspect wrapper
-- **Portuguese typo** in the questionnaire completion button
+- **CSV export of time and range answers**: object-valued answers and scores (PSQI and MCTQ times, for example) were written as `[object Object]`. They now export as readable text such as `23:05`, `1995-2018`, `2018-03` or `whole_life`
 
 ### Removed
 
-- Unused PNG artwork: entry cards (including `pt-BR/`), end-of-entry screens, taskbar and back/next button images
-- Unused entry-card strings (`startEntry`, `editEntry`, `lockedEntry`, `entrySaved`, `returnHome`) and stray files from the repository root
-
----
-
-## [1.1.3] — 2026-05-23
-
-### Added
-
-- **Entry date prompt**: participants completing entries between midnight and 14:00 are now asked which day the entry belongs to (today or yesterday) before starting the questionnaire. This correctly attributes data for night owls, delayed sleep phase, and anyone who goes to bed after midnight — without relying on arbitrary fixed cutoffs. The evening card gate is now date-pair-aware, checking whether the morning entry for the *same candidate date* exists rather than always checking today’s date.
-
----
-
-## [1.1.2] — 2026-05-21
-
-### Fixed
-
-- **Evening diary blocked after morning entry**: context state was not refreshed before navigating back to the home screen; on slower Android devices the home screen could render with stale `todayStatus`, incorrectly locking the evening card
-- **Evening diary unavailable after ~21:00 in Brazil**: date strings were computed from UTC (`toISOString()`), causing entries made after 21:00 local time (UTC-3) to be assigned to the following day; replaced with a `getLocalDateStr()` helper that uses device local time throughout `saveEntry`, `isTodayComplete`, and `loadTodayStatus`
-- **Android question text not updating between steps**: `ScrollView` in `QuestionnaireScreen` was not resetting scroll position on question change, leaving previous question text visible above the fold; added a `scrollTo({ y: 0 })` effect keyed to `currentIndex`
-- **Service worker cache not busting on deploy**: cache version string was hardcoded and never incremented; `deploy.sh` now injects the app version from `package.json` at build time; `sed` command made cross-platform compatible (macOS and Linux/Netlify)
-
----
-
-## [1.1.1] — 2026-05-04
-
-### Fixed
-
-- **Minute stepper — one-time questionnaires**: time inputs in `QuestionnaireScreen` and `QuestionnaireModal` now tap ±5 min and hold ±1 min, matching the daily diary behaviour
-- **Onboarding nav buttons**: Back button uses glassmorphic style consistent with the rest of the app; Next/Get Started button gains shadow and semi-transparent amber fill
-
----
-
-## [1.1.0] — 2026-05-01
-
-### Added
-
-- **Unit test suite — questionnaire scoring**: comprehensive tests for all eight one-time questionnaire instruments (ESS, ISI, DBAS-16, MEQ, PSQI, RU-SATED, STOP-BANG, MCTQ) covering score computation, boundary conditions, and interpretation labels
-- **Unit test suite — JSON export consistency**: structural validation of `exportToJSON` output, field-format checks (clock, duration, medication), round-trip fidelity, and import edge cases
-
-### Fixed
-
-- **MEQ items 11 and 12**: corrected option values to match the original Horne & Östberg (1976) paper — item 11 now scores 6/4/2/0 and item 12 scores 0/2/3/5, raising the maximum achievable score to 86
-- **PSQI scoring**: corrected sleep duration boundary (`>7` → `≥7`), sleep efficiency formula, and disturbance thresholds to match the official Buysse et al. (1989) scoring algorithm; maximum score now correctly displayed as `/21`
-- **PSQI result display**: maximum score was incorrectly calculated by summing raw item option values (giving `/39`); now uses the published maximum of 21 via `maxScore` property
-- **RU-SATED**: fully rewritten to match official Ru-SATED v4.0 — 6 items (not 7), 0–4 response scale (Never/Rarely/Sometimes/Often/Always), maximum score 24, corrected item wording; interpretation thresholds updated accordingly
-- **MCTQ MSFsc formula**: corrected to compare SD_F vs SD_W (not SD_week) per Roenneberg et al.; social jetlag now uses circular (shorter arc) arithmetic to handle midnight-straddling schedules, fixing erroneous values such as 24.0 h
-- **Questionnaire results not showing**: `resultsUnlocked` was passed as a stale route param from `QuestionnairesScreen` (evaluated before `morningCount` loaded from storage); `QuestionnaireScreen` now loads entry count independently, resolving the issue where results only appeared after visiting the Final Report screen
-- **Service worker cache**: bumped cache version from `v1` to `v2` to force a full cache bust on existing PWA installations, ensuring updated JS bundles are served
-
-### Improved
-
-- **One-time questionnaire steppers**: time, duration, and number steppers in `QuestionnaireModal` now support long-press repeat (150 ms interval), matching the behaviour of the daily diary steppers
-- **Beta flags removed**: ESS, ISI, DBAS-16, MEQ, PSQI, RU-SATED, STOP-BANG, and MCTQ are now considered stable; beta flags and banners removed from all eight instruments
-- **Questionnaire footnote**: removed the opening "These questionnaires are experimental" sentence; retained the methodological caveat and licensing reference
-- **MCTQ**: removed beta flag following scoring correction
-
----
-## [1.1.0-beta.2] — 2026-04-24
-
-### Improved
-
-- **Questionnaire UI refresh**: daily (morning/evening) and one-time questionnaire screens fully modernised — glassy progress bar, yes/no, rating and number buttons with soft shadows; themed tint on progress track for contrast; glassy Back button; shadow lift on Next button; borderless unselected button states throughout
-- **Minor visual polish**: button shadow depths increased across questionnaire screens; progress icon and track borders softened to match glassy language
-
----
-
-## [1.2.0-beta.1] — 2026-04-24
-
-### Improved
-
-- **UI modernisation — glassy card system**: unified semi-transparent card treatment (`rgba(255,255,255,0.72)`) with white borders and blue-tinted shadows applied across all screens; replaces hard `borderWidth: 1.5` / `#B0CCEE` borders throughout
-- **Home screen**: instructions card and bottom shortcut cards (Past Entries, Final Report) refreshed with glassy treatment, icon pills, and inline label + chevron rows
-- **Tab bar**: labels added (Home / Diary / Settings; EN + PT-BR), semi-transparent background with blur on web, upward shadow, refined inactive colour
-- **Diary tab**: streak banner and stat chips refreshed; streak emoji replaced with themed flame icon (orange when active, blue when zero); stat box labels shortened to prevent wrapping
-- **Login screen**: logo added as a soft footer element; glassy inputs; dynamic CTA button colour (grey → blue based on input)
-- **Final report**: blurred home gradient background with white overlay; battery-half icon for morning restedness; sleep quality swapped to blue star
-- **Profile modal**: full-screen gradient background with overlay; glassy edit inputs and action buttons
-- **Past entries**: glassy entry cards; orange uppercase date labels; icon pills for morning/evening
-- **Questionnaires screen**: blue-tinted borderless Start/Redo buttons
-- **Daily questionnaire**: glassy progress bar, yes/no, rating, and number buttons; themed tint on progress track; glassy Back button; shadow on Next button
-- **One-time questionnaire modal**: gradient background with purple overlay; glassy progress bar, scale buttons, instructions box, and nav buttons; purple border only on selected state
-- **Export, Medications, Sleep Metrics, Questionnaire Credits, Threshold References screens**: all modernised with glassy cards and shadow headers
-- **`expo-blur`**: added as a dependency for blur effects on the final report and profile modal
-
----
-
-## [1.1.0-beta.1] — 2026-04-22
-
-### Added
-
-- **Final report — share card**: shareable image card showing all sleep metrics in a 2×4 grid with threshold-coloured stat chips; works on native (via `react-native-view-shot` + `expo-sharing`) and web PWA
-- **Final report — thresholds**: metric chips now colour-coded against clinical reference values
-- **Export screen**: modernised with glassy cards and a shadow header
-- **Medication dose stepper**: 5 mg increment stepper added to medication dose input
-- **Alcohol question**: standard drink definition hint added to the diary alcohol question
-- **SVG backgrounds**: PNG background assets replaced with adaptive SVG components via `react-native-svg`
-- **Unit test suite**: tests for storage helpers, stat computations, sleep metrics, and i18n; run automatically on every push via GitHub Actions
-- **CI badge**: test status badge added to README
-
-### Improved
-
-- **Home screen**: entry card aspect ratio fixed; improved medication UX
-- **Profile and questionnaire modals**: constrained to app width on web
-- **Fathom analytics**: SPA page tracking enabled via `data-spa=auto`
-- **Stability**: all AsyncStorage operations wrapped in try/catch with safe JSON parsing
-- **Accessibility**: accessible labels added throughout; decorative emoji hidden from screen readers; colour-only distinctions resolved
-- **Performance**: heavy computations memoised to avoid redundant re-renders on re-render
-- **Architecture**: entry state centralised in `EntriesContext`; `MIN_ENTRIES` threshold and `computeStats` moved to `utils/`
-
-### Fixed
-
-- Entry button distortion on web and profile layout issues
-- Duplicate i18n questionnaire keys that broke Back/Next buttons
-- PWA splash dismissal on Android (`display-mode` standalone detection)
-
----
-
-## [1.0.0-beta.1] — 2026-04-21
-
-First public beta release of Sleep Diaries. This release covers the full core feature set intended for research use.
-
-### Daily diary
-
-- Morning entry (13 questions) covering bedtime, sleep onset latency, night wakings, final awakening, time in bed, sleep quality, and restedness
-- Evening entry (5 questions) covering naps, caffeine, exercise, and medication
-- Rich input types: 24-hour time stepper, duration stepper, yes/no, 1–5 rating scale, number counter, medication tracker, and free text
-- Conditional follow-up questions appear automatically based on prior answers
-- Dual amber/blue themes distinguish morning and evening flows
-
-### Research questionnaires *(beta)*
-
-- Eight validated one-time instruments accessible from the Profile screen: ESS, ISI, DBAS-16, MEQ, PSQI, RU-SATED, STOP-BANG, MCTQ
-- Step-by-step questionnaire modal with a purple theme, distinct from the daily diary
-- Results gated behind 14 morning diary entries; questionnaires themselves always completable
-- Colour-banded score bars and plain-language interpretation text
-- Redo option for follow-up timepoints, with confirmation before overwriting
-- Questionnaire credits screen listing copyright and permission status per instrument
-
-### Final report
-
-- Unlocks automatically after 14 morning diary entries
-- Computes total sleep time, sleep efficiency, sleep onset latency, WASO, sleep quality, and restedness
-- Questionnaire results included in the report with interpretation and completion dates
-
-### Profile
-
-- Editable participant name and research code
-- Summary statistics: morning entries, evening entries, current streak, member since date
-- Sleep metrics glossary with plain-language descriptions of each computed metric
-- Quick actions: replay instructions, link to circadia-lab.uk
-- My Medications screen — save regular treatments that auto-populate morning and evening diary medication questions
-
-### Data management
-
-- Local persistence via AsyncStorage; no data sent to any server
-- CSV and JSON export via native share sheet, including questionnaire results
-- JSON import with merge or replace options; duplicate entries are skipped on merge
-- Research code included in all exports for participant linkage
-
-### Platform and deployment
-
-- iOS and Android via React Native + Expo SDK 55
-- Progressive Web App (PWA) installable on iOS (Safari), Android (Chrome), and desktop
-- Offline support via service worker
-- Automatic deployment to [sleepdiaries.circadia-lab.uk](https://sleepdiaries.circadia-lab.uk) on push to `main`
-
-### Notifications
-
-- Daily push notification reminders at 8am and 9pm (configurable in Settings - iOS/Android only)
-- Test notification option from the Settings screen
-
-### Localisation
-
-- Full Brazilian Portuguese (pt-BR) translation — UI strings, question text, and locale-specific image assets
-- Locale detected automatically from device settings; falls back to English
-
-### UI and navigation
-
-- Tab bar, questionnaire nav buttons, instructions slideshow, and bottom shortcut cards all rendered in code using Ionicons (no PNG assets)
-- Centralised typography system (Livvic Bold headings, Afacad body)
-- Safe area handling via `useInsets.js`; tab bar width via `useWindowDimensions()`
-- Settings screen: notifications, text-to-speech, language, export, and account management
-- Version number displayed dynamically in Settings → About, sourced from `app.json`
-
-### Known limitations
-
-- Questionnaire scoring should be considered experimental; always verify against published sources before use in research
-- KSS (Karolinska Sleepiness Scale) is defined but not yet active, pending protocol decisions
-- Text-to-speech and bigger text settings are placeholders not yet implemented
+- ISI, DBAS-16, MEQ, RU-SATED, STOP-BANG and the one-time KSS from the questionnaire list. The KSS is now part of the daily diaries
