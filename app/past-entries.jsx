@@ -23,7 +23,7 @@ const formatAnswer = (question, value) => {
     case 'duration': { const p = []; if (value.hours > 0) p.push(`${value.hours} ${t('questionnaire.hrs')}`); if (value.minutes > 0) p.push(`${value.minutes} ${t('questionnaire.min')}`); return p.length ? p.join(' ') : `0 ${t('questionnaire.min')}`; }
     case 'yes_no':    return value === 'yes' ? t('pastEntries.answerYes') : t('pastEntries.answerNo');
     case 'number':    return `${value}${question.unit ? ' ' + question.unit : ''}`;
-    case 'rating':  { const o = question.options?.find((x) => x.value === value); return o ? `${value}/5 — ${o.label}` : `${value}/5`; }
+    case 'rating':  { const o = question.options?.find((x) => x.value === value); if (question.section) return o ? o.label : String(value); return o ? `${value}/5 — ${o.label}` : `${value}/5`; }
     case 'medication': return (!value || !value.length) ? t('pastEntries.answerNone') : value.map((m) => `${m.name}${m.dose ? ` (${m.dose}mg)` : ''}`).join(', ');
     case 'text_input': return value || '—';
     default:           return String(value);
@@ -36,7 +36,7 @@ const AnswerRow = ({ question, value, isMorning }) => {
   if (formatted === '—' && question.optional) return null;
   return (
     <View style={styles.answerRow}>
-      <Text style={[styles.answerQuestion, { fontFamily: FONTS.bodyMedium }]}>{question.number}. {question.text}</Text>
+      <Text style={[styles.answerQuestion, { fontFamily: FONTS.bodyMedium }]}>{question.section ? `${question.section} · ` : `${question.number}. `}{question.text}</Text>
       <Text style={[styles.answerValue, { color, fontFamily: FONTS.body }]}>{formatted}</Text>
     </View>
   );

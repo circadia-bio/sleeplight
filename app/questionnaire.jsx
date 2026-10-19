@@ -374,7 +374,7 @@ export default function QuestionnaireScreen() {
   const allQuestions = entryType === 'morning' ? MORNING_QUESTIONS : EVENING_QUESTIONS;
   const theme = entryType === 'morning' ? 'morning' : 'evening';
 
-  const { refresh } = useEntries();
+  const { refresh, screening, loading } = useEntries();
   const scrollRef = useRef(null);
   const [answers, setAnswers]           = useState(() => buildInitialAnswers(allQuestions));
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -415,6 +415,12 @@ export default function QuestionnaireScreen() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [currentIndex]);
+
+  // The diaries stay locked until the screening battery is complete. Home and the
+  // Diary tab already show them as locked; this also covers deep links.
+  useEffect(() => {
+    if (!loading && !screening.complete) router.replace('/(tabs)/home');
+  }, [loading, screening.complete]);
 
   useEffect(() => {
     if (!done) return;
@@ -465,6 +471,10 @@ export default function QuestionnaireScreen() {
   if (!question) return null;
 
   const c = THEME[theme];
+  // Items from a questionnaire section (KSS, PANAS, ...) are numbered within it.
+  const sectionTotal = question.section
+    ? allQuestions.filter((q) => q.section === question.section).length
+    : 0;
 
   return (
     <View style={styles.root}>
@@ -477,8 +487,16 @@ export default function QuestionnaireScreen() {
         </View>
 
         <ScrollView ref={scrollRef} style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          {question.section && (
+            <Text style={[styles.sectionLabel, { color: c.primary }]}>
+              {question.section} · {question.number}/{sectionTotal}
+            </Text>
+          )}
+          {question.preface && (
+            <Text style={[styles.preface, { color: c.primary }]}>{question.preface}</Text>
+          )}
           <Text style={[styles.questionText, { color: c.primary }, question.hint && { marginBottom: 8 }]}>
-            {question.number}. {question.text}
+            {question.section ? '' : `${question.number}. `}{question.text}
           </Text>
           {question.hint && (
             <Text style={[styles.questionHint, { color: c.primary }]}>{question.hint}</Text>
@@ -512,6 +530,8 @@ const styles = StyleSheet.create({
   questionText:  { fontSize: 26, fontWeight: '800', marginTop: 24, marginBottom: 40, lineHeight: 34 },
   questionHint:  { fontSize: 13, fontWeight: '500', fontStyle: 'italic', opacity: 0.55, marginBottom: 32 },
   inputArea:     { alignItems: 'center' },
+  sectionLabel:  { fontSize: 13, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', opacity: 0.7, marginTop: 24 },
+  preface:       { fontSize: 15, fontWeight: '600', fontStyle: 'italic', opacity: 0.8, marginTop: 8, lineHeight: 22 },
 
   progressRow: {
     flexDirection: 'row',
