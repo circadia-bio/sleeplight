@@ -44,7 +44,7 @@ Legend: ✅ done · ⬜ still to do
 
 ## 6. Questionnaires
 
-- ✅ The one-time questionnaires are now the screening battery: GHQ-12, MCTQ, ESS, PSQI, PANAS, Light History and Social Media Usage. They are defined in `data/questionnaires.js`, run by `app/QuestionnaireScreen.jsx`, and gate the diaries (`utils/screening.js`)
+- ✅ The one-time questionnaires are now the screening battery: About You (date of birth and gender), GHQ-12, MCTQ, ESS, PSQI, PANAS, Light History and Social Media Usage. They are defined in `data/questionnaires.js`, run by `app/QuestionnaireScreen.jsx`, and gate the diaries (`utils/screening.js`)
 - ✅ ISI, DBAS-16, MEQ, RU-SATED, STOP-BANG and the one-time KSS were removed. KSS is now in the diaries
 - ⬜ **GHQ-12 licence**: it is a licensed instrument (GL Assessment). Get permission before using it in the study
 - ⬜ **Social Media Usage source**: the study document does not name the instrument. Fill in `credit` and `reference` in `data/questionnaires.js`
