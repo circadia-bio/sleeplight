@@ -26,6 +26,10 @@ html = html.replace(
   'width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover'
 );
 
+// 1b. Page title. Expo leaves <title> empty and fills it in at runtime, so bookmarks and
+//     "Add to Home Screen" would otherwise fall back to the address.
+html = html.replace(/<title[^>]*>[^<]*<\/title>/, `<title>${APP_NAME}</title>`);
+
 // 2. PWA meta tags + splash links + service worker
 const splash = (file, w, h, ratio) =>
   `<link rel="apple-touch-startup-image" href="/splashscreens/${file}.png" media="screen and (device-width: ${w}px) and (device-height: ${h}px) and (-webkit-device-pixel-ratio: ${ratio}) and (orientation: portrait)" />`;

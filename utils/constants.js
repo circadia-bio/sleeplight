@@ -15,3 +15,10 @@
  * Used by: home.jsx, entry.jsx, final-report.jsx, ProfileModal.jsx
  */
 export const MIN_ENTRIES_FOR_REPORT = 14;
+
+/**
+ * Name shown in the browser tab, bookmarks and the "Add to Home Screen" prompt.
+ * Expo Router rewrites document.title on every navigation, so every screen sets
+ * its `title` option to this (see app/_layout.jsx and app/(tabs)/_layout.jsx).
+ */
+export const APP_NAME = 'Sleep Light';

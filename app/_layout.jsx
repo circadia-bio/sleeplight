@@ -17,6 +17,7 @@ import { Asset } from 'expo-asset';
 import { loadName } from '../storage/storage';
 import { EntriesProvider } from '../storage/EntriesContext';
 import { isStandalonePwa, requestPersistentStorage } from '../utils/dataSafety';
+import { APP_NAME } from '../utils/constants';
 
 const isStandalone = isStandalonePwa();
 
@@ -79,7 +80,7 @@ export default function RootLayout() {
 
   const content = (
     <EntriesProvider>
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, title: APP_NAME }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="questionnaire"      options={{ animation: 'slide_from_bottom' }} />

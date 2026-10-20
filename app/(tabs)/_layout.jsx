@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS, SIZES } from '../../theme/typography';
 import t from '../../i18n';
+import { APP_NAME } from '../../utils/constants';
 
 const TABS = [
   { name: 'home',     icon: 'home',     iconOutline: 'home-outline',      label: () => t('tabs.home')     },
@@ -66,9 +67,9 @@ export default function TabLayout() {
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tabs.Screen name="home"     options={{ title: t('tabs.home') }} />
-      <Tabs.Screen name="entry"    options={{ title: t('tabs.entry') }} />
-      <Tabs.Screen name="settings" options={{ title: t('tabs.settings') }} />
+      <Tabs.Screen name="home"     options={{ title: APP_NAME }} />
+      <Tabs.Screen name="entry"    options={{ title: APP_NAME }} />
+      <Tabs.Screen name="settings" options={{ title: APP_NAME }} />
     </Tabs>
   );
 }
