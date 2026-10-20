@@ -2,7 +2,7 @@
 
 **A research app that pairs a one-time screening battery with daily morning and evening sleep diaries, built with React Native and Expo.**
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue)](./CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-in%20development-orange)](#)
 [![Expo](https://img.shields.io/badge/Expo-55-000020?logo=expo&logoColor=white)](https://expo.dev)
 [![React Native](https://img.shields.io/badge/React%20Native-0.83-61DAFB?logo=react&logoColor=white)](https://reactnative.dev)
@@ -27,7 +27,7 @@ All data stays on the participant's device until they export it.
 
 ## ✨ Features
 
-- 🟣 **Screening battery** — seven one-time questionnaires, completed in order and saved one at a time so a participant can stop and resume
+- 🟣 **Screening battery** — eight one-time questionnaires, completed in order and saved one at a time so a participant can stop and resume
 - 🔒 **Gated and locked** — the diaries stay locked until screening is complete, and each answered questionnaire is locked against edits
 - 🌅 **Morning diary** — the sleep diary, then KSS, media use before sleep, and texts and calls after lights-out
 - 🌙 **Evening diary** — KSS, PANAS and PROMIS social function (4a, 6a, 7a, 8a), then the evening sleep diary
@@ -140,6 +140,7 @@ Participants complete these once, in this order, before the diaries unlock. Prog
 
 | Instrument | Items | Stored and scored | Shown back to the participant |
 |------------|-------|-------------------|-------------------------------|
+| About You | 2 | Date of birth and gender (descriptive only) | No |
 | GHQ-12 | 12 | Raw 0–3 per item; Likert total (0–36) and GHQ-scored total (0–12) | No |
 | MCTQ | 7 | MSFsc (clock time) and social jetlag (hours) | Yes, after 14 morning entries |
 | ESS | 8 | 0–24 | Yes, after 14 morning entries |
@@ -169,6 +170,7 @@ An instrument can set these flags in `data/questionnaires.js`:
 | `duration_min` | Integer minutes stepper |
 | `number` | Integer stepper with min, max and unit |
 | `country` | Type-to-search country list → `'Brazil'` |
+| `date` | Day, month and year steppers → `{ day, month, year }` (cannot be in the future) |
 | `year_range` | From/to year steppers → `{ from, to }` |
 | `month_year` | Month and year steppers → `{ month, year }` (`defaultValue: 'now'` pre-fills this month) |
 | `months_or_whole_life` | Months stepper or "Whole life" → `{ months }` or `{ wholeLife: true }` |
@@ -230,7 +232,7 @@ Data is stored locally with `@react-native-async-storage/async-storage`. No data
 { id: 'panas', completedAt: '2026-10-19T09:00:00Z', answers: { panas1: 3, /* … */ }, score: { pa: 31, na: 14 } }
 ```
 
-Scores can be numbers, objects (`{ msf_sc, sjl }`, `{ pa, na }`, `{ likert, ghq }`) or `null` for descriptive instruments. In the CSV export, object answers and scores are written as readable text (`23:05`, `1995-2018`, `2018-03`, `30`, `whole_life`, `pa=31;na=14`).
+Scores can be numbers, objects (`{ msf_sc, sjl }`, `{ pa, na }`, `{ likert, ghq }`) or `null` for descriptive instruments. In the CSV export, object answers and scores are written as readable text (`23:05`, `1995-2018`, `2018-03`, `1990-03-05`, `30`, `whole_life`, `pa=31;na=14`). Date of birth is part of the export, so treat exported files as personal data.
 
 Exports and imports work from **Settings → Export Data**. Importing offers *Merge* (existing entries and results win) or *Replace*.
 

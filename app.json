@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sleep Light",
     "slug": "sleep-light",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -31,8 +31,7 @@
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/favicon.png",
-      "template": "./web/index.html",
-      "baseUrl": "/SleepDiaries"
+      "template": "./web/index.html"
     }
   }
 }
