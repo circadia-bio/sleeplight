@@ -392,6 +392,9 @@ const flattenQValue = (value) => {
     return `${String(value.hour).padStart(2, '0')}:${String(value.minute).padStart(2, '0')}`;
   }
   if ('from' in value && 'to' in value) return `${value.from}-${value.to}`;
+  if ('day' in value && 'month' in value && 'year' in value) {
+    return `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
+  }
   if ('month' in value && 'year' in value) return `${value.year}-${String(value.month).padStart(2, '0')}`;
   if (value.wholeLife === true) return 'whole_life';
   if ('months' in value && Object.keys(value).length === 1) return String(value.months);

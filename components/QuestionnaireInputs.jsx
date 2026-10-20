@@ -78,10 +78,10 @@ const RepeatButton = ({ onStep, name, round = false, accessibilityLabel }) => {
   );
 };
 
-const StepperColumn = ({ display, label, onUp, onDown, upLabel, downLabel }) => (
+const StepperColumn = ({ display, label, onUp, onDown, upLabel, downLabel, width }) => (
   <View style={styles.col}>
     <RepeatButton onStep={onUp} name="caret-up" accessibilityLabel={upLabel} />
-    <Text style={styles.value}>{display}</Text>
+    <Text style={[styles.value, width ? { minWidth: width } : null]}>{display}</Text>
     <RepeatButton onStep={onDown} name="caret-down" accessibilityLabel={downLabel} />
     {!!label && <Text style={styles.colLabel}>{label}</Text>}
   </View>
@@ -320,3 +320,88 @@ const styles = StyleSheet.create({
   wholeChipOn:   { backgroundColor: C.primary, borderColor: C.primary },
   wholeChipText: { fontSize: 18, fontFamily: FONTS.body, color: C.primary },
 });
+
+// ─── Date (day / month / year) ───────────────────────────────────────────────────
+
+const daysInMonth = (month, year) => new Date(year, month, 0).getDate();
+
+/** Valid calendar date, not in the future, from MIN_YEAR onwards. */
+export const isValidDate = (v) => {
+  if (!v || !Number.isInteger(v.day) || !Number.isInteger(v.month) || !Number.isInteger(v.year)) return false;
+  if (v.month < 1 || v.month > 12 || v.year < MIN_YEAR) return false;
+  if (v.day < 1 || v.day > daysInMonth(v.month, v.year)) return false;
+  return new Date(v.year, v.month - 1, v.day) <= new Date();
+};
+
+/**
+ * Day / month / year steppers, e.g. for a date of birth.
+ * Starts empty; the first tap fills in a starting date 30 years back, and
+ * ±10-year buttons make large jumps quick. Stepping never produces an
+ * impossible date (31 February) or a date in the future.
+ */
+export const DateInput = ({ value, onChange }) => {
+  const today = new Date();
+  const thisY = today.getFullYear();
+  const v = value ?? { day: null, month: null, year: null };
+  const empty = v.day == null || v.month == null || v.year == null;
+
+  // Largest day allowed in a month, never later than today.
+  const maxDay = (month, year) => {
+    const max = daysInMonth(month, year);
+    return year === thisY && month === today.getMonth() + 1 ? Math.min(max, today.getDate()) : max;
+  };
+
+  // Pull any combination back to a real date that is not in the future.
+  const fit = (day, month, year) => {
+    const y = clamp(year, MIN_YEAR, thisY);
+    let m = clamp(month, 1, 12);
+    if (y === thisY && m > today.getMonth() + 1) m = today.getMonth() + 1;
+    return { day: clamp(day, 1, maxDay(m, y)), month: m, year: y };
+  };
+
+  const step = (field, d) => {
+    if (empty) { onChange(fit(1, 1, thisY - 30)); return; }
+    if (field === 'day') {
+      const max = maxDay(v.month, v.year);
+      const next = v.day + d;
+      onChange({ ...v, day: next > max ? 1 : next < 1 ? max : next });
+    } else if (field === 'month') {
+      const month = ((v.month - 1 + d + 12) % 12) + 1;
+      onChange(fit(v.day, month, v.year));
+    } else {
+      onChange(fit(v.day, v.month, v.year + d));
+    }
+  };
+
+  return (
+    <View style={styles.centre}>
+      <View style={[styles.row, { gap: 8 }]}>
+        <StepperColumn
+          display={empty ? '--' : pad(v.day)} label="Day" width={64}
+          onUp={() => step('day', 1)} onDown={() => step('day', -1)}
+          upLabel="Next day" downLabel="Previous day"
+        />
+        <Text style={styles.sep}>/</Text>
+        <StepperColumn
+          display={empty ? '--' : pad(v.month)} label={empty ? 'Month' : MONTHS[v.month - 1]} width={64}
+          onUp={() => step('month', 1)} onDown={() => step('month', -1)}
+          upLabel="Next month" downLabel="Previous month"
+        />
+        <Text style={styles.sep}>/</Text>
+        <StepperColumn
+          display={empty ? '----' : String(v.year)} label="Year" width={96}
+          onUp={() => step('year', 1)} onDown={() => step('year', -1)}
+          upLabel="Next year" downLabel="Previous year"
+        />
+      </View>
+      <View style={styles.yearRow}>
+        <TouchableOpacity style={styles.yearBtn} onPress={() => step('year', -10)} accessibilityRole="button">
+          <Text style={styles.yearBtnText}>− 10 years</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.yearBtn} onPress={() => step('year', 10)} accessibilityRole="button">
+          <Text style={styles.yearBtnText}>+ 10 years</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};

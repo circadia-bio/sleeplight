@@ -41,6 +41,7 @@
  *   duration_min   — integer minutes stepper
  *   number         — integer stepper with min/max/unit
  *   country        — type-to-search country list           → 'Brazil'
+ *   date           — day / month / year steppers          → { day, month, year }
  *   year_range     — from/to year steppers                 → { from, to }
  *   month_year     — month + year steppers                 → { month, year }
  *   months_or_whole_life — months stepper or "Whole life"  → { months } | { wholeLife: true }
@@ -76,6 +77,36 @@ const RECORDED = {
   label: 'Recorded',
   color: '#6B3FA0',
   description: 'Your answers have been saved for the research team.',
+};
+
+// ─── Demographics ──────────────────────────────────────────────────────────────────────
+
+export const DEMOGRAPHICS = {
+  id:         'demographics',
+  title:      'About You',
+  shortTitle: 'About You',
+  credit:     'Sleep Light study questions. Circadia Lab, Northumbria University.',
+  locked:     true,
+  noFeedback: true,
+  instructions:
+    'Two quick questions about you. Your answers stay on your device and are only shared ' +
+    'when you export your data.',
+  reference:  'Sleep Light study questions. Circadia Lab, Northumbria University.',
+  items: [
+    { id: 'dem_dob',    number: 1, text: 'What is your date of birth?', type: 'date',
+      hint: 'Choose the day, month and year you were born.' },
+    { id: 'dem_gender', number: 2, text: 'What is your gender?',        type: 'single_choice',
+      // Stored as readable text rather than a number.
+      options: [
+        { value: 'man',               label: 'Man (including trans man)' },
+        { value: 'woman',             label: 'Woman (including trans woman)' },
+        { value: 'non_binary',        label: 'Non-binary' },
+        { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+      ] },
+  ],
+  // Descriptive data only: nothing to score.
+  score: () => null,
+  interpret: () => RECORDED,
 };
 
 // ─── GHQ-12 ───────────────────────────────────────────────────────────────────
@@ -498,7 +529,7 @@ export const SOCIALMEDIA = {
 // ─── Registry ──────────────────────────────────────────────────────────────────
 
 /** Screening battery, in the order participants complete it. */
-export const QUESTIONNAIRES = [GHQ12, MCTQ, ESS, PSQI, PANAS, LIGHTHISTORY, SOCIALMEDIA];
+export const QUESTIONNAIRES = [DEMOGRAPHICS, GHQ12, MCTQ, ESS, PSQI, PANAS, LIGHTHISTORY, SOCIALMEDIA];
 
 export const SCREENING_IDS = QUESTIONNAIRES.map((q) => q.id);
 

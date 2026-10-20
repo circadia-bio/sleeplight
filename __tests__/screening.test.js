@@ -24,7 +24,7 @@ describe('getScreeningStatus', () => {
   const results = (ids) => ids.map((id) => ({ id }));
 
   it('starts at the first instrument when nothing is done', () => {
-    expect(getScreeningStatus([])).toEqual({ done: 0, total: 7, complete: false, nextId: 'ghq12' });
+    expect(getScreeningStatus([])).toEqual({ done: 0, total: 8, complete: false, nextId: 'demographics' });
   });
 
   it('defaults to nothing done when called without arguments', () => {
@@ -32,15 +32,15 @@ describe('getScreeningStatus', () => {
   });
 
   it('points at the first unfinished instrument in battery order, not completion order', () => {
-    const status = getScreeningStatus(results(['ess', 'ghq12']));
-    expect(status.done).toBe(2);
+    const status = getScreeningStatus(results(['ess', 'demographics', 'ghq12']));
+    expect(status.done).toBe(3);
     expect(status.complete).toBe(false);
     expect(status.nextId).toBe('mctq');
   });
 
   it('is complete, with no next instrument, once every instrument is done', () => {
     const status = getScreeningStatus(results(SCREENING_IDS));
-    expect(status).toEqual({ done: 7, total: 7, complete: true, nextId: null });
+    expect(status).toEqual({ done: 8, total: 8, complete: true, nextId: null });
   });
 
   it('ignores stored results that are not part of the battery', () => {
@@ -155,6 +155,18 @@ describe('exportToCSV — Light History and object scores', () => {
     expect(csv).toContain('"2026-10"');
     expect(csv).toContain('"likert=14;ghq=4"');
     expect(csv).toContain('"23:05"');
+  });
+
+  it('writes the date of birth as YYYY-MM-DD and the gender as readable text', async () => {
+    await saveQuestionnaire('demographics', {
+      dem_dob: { day: 5, month: 3, year: 1990 },
+      dem_gender: 'non_binary',
+    }, null);
+
+    const csv = await exportToCSV('P1');
+    expect(csv).not.toContain('[object Object]');
+    expect(csv).toContain('"1990-03-05"');
+    expect(csv).toContain('"non_binary"');
   });
 
   it('writes whole_life when the participant chose "Whole life"', async () => {

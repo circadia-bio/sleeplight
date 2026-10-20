@@ -21,7 +21,7 @@
  */
 
 import {
-  ESS, PSQI, MCTQ, GHQ12, PANAS, LIGHTHISTORY, SOCIALMEDIA,
+  ESS, PSQI, MCTQ, GHQ12, PANAS, LIGHTHISTORY, SOCIALMEDIA, DEMOGRAPHICS,
   QUESTIONNAIRES, SCREENING_IDS, getQuestionnaire,
 } from '../data/questionnaires';
 
@@ -29,7 +29,7 @@ import {
 
 describe('screening battery registry', () => {
   it('lists the Sleep Light instruments in completion order', () => {
-    expect(SCREENING_IDS).toEqual(['ghq12', 'mctq', 'ess', 'psqi', 'panas', 'lighthistory', 'socialmedia']);
+    expect(SCREENING_IDS).toEqual(['demographics', 'ghq12', 'mctq', 'ess', 'psqi', 'panas', 'lighthistory', 'socialmedia']);
   });
 
   it('every instrument is locked once completed', () => {
@@ -50,12 +50,38 @@ describe('screening battery registry', () => {
   });
 
   it('research-only instruments are flagged noFeedback; scored ones are not', () => {
-    expect([GHQ12, PANAS, LIGHTHISTORY, SOCIALMEDIA].every((q) => q.noFeedback === true)).toBe(true);
+    expect([DEMOGRAPHICS, GHQ12, PANAS, LIGHTHISTORY, SOCIALMEDIA].every((q) => q.noFeedback === true)).toBe(true);
     expect([ESS, PSQI, MCTQ].every((q) => !q.noFeedback)).toBe(true);
   });
 });
 
 // ─── GHQ-12 ───────────────────────────────────────────────────────────────────
+
+// ─── Demographics ────────────────────────────────────────────────────────────
+
+describe('Demographics — items', () => {
+  it('asks for a date of birth, then gender', () => {
+    expect(DEMOGRAPHICS.items.map((i) => [i.id, i.type])).toEqual([
+      ['dem_dob', 'date'],
+      ['dem_gender', 'single_choice'],
+    ]);
+  });
+
+  it('offers the four gender options from the study, with readable stored values', () => {
+    const { options } = DEMOGRAPHICS.items[1];
+    expect(options.map((o) => o.label)).toEqual([
+      'Man (including trans man)',
+      'Woman (including trans woman)',
+      'Non-binary',
+      'Prefer not to say',
+    ]);
+    expect(options.map((o) => o.value)).toEqual(['man', 'woman', 'non_binary', 'prefer_not_to_say']);
+  });
+
+  it('has nothing to score', () => {
+    expect(DEMOGRAPHICS.score({})).toBeNull();
+  });
+});
 
 describe('GHQ-12 — items', () => {
   it('has 12 single-choice items with four options valued 0–3', () => {

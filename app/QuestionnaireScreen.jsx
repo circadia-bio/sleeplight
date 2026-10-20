@@ -29,8 +29,8 @@ import { FONTS, SIZES } from '../theme/typography';
 import t, { isSwedish } from '../i18n';
 import ScreenBackground from '../components/ScreenBackground';
 import {
-  CountryInput, YearRangeInput, MonthYearInput, MonthsOrWholeLifeInput,
-  currentMonthYear, isValidYearRange, isValidMonthYear, isValidMonthsOrWholeLife,
+  CountryInput, YearRangeInput, MonthYearInput, MonthsOrWholeLifeInput, DateInput,
+  currentMonthYear, isValidYearRange, isValidMonthYear, isValidMonthsOrWholeLife, isValidDate,
 } from '../components/QuestionnaireInputs';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -348,6 +348,7 @@ const isAnswered = (item, value) => {
     case 'country':    return typeof value === 'string' && value.length > 0;
     case 'year_range': return isValidYearRange(value);
     case 'month_year': return isValidMonthYear(value);
+    case 'date':       return isValidDate(value);
     case 'months_or_whole_life': return isValidMonthsOrWholeLife(value);
     default:           return value !== null && value !== undefined;
   }
@@ -545,6 +546,9 @@ export default function QuestionnaireScreen() {
               )}
               {item.type === 'country' && (
                 <CountryInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} />
+              )}
+              {item.type === 'date' && (
+                <DateInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} />
               )}
               {item.type === 'year_range' && (
                 <YearRangeInput value={currentValue} onChange={(v) => setAnswer(item.id, v)} />
