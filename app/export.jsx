@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { exportToCSV, exportToJSON, loadName, loadEntries, importFromJSON, recordExport } from '../storage/storage';
+import { exportToCSV, exportToJSON, loadName, loadEntries, loadAllQuestionnaires, importFromJSON, recordExport } from '../storage/storage';
 import showAlert from '../utils/alert';
 import { FONTS, SIZES } from '../theme/typography';
 import t from '../i18n';
@@ -26,8 +26,8 @@ export default function ExportScreen() {
   const handleExport = async (format) => {
     setLoading(format);
     try {
-      const name = await loadName(); const entries = await loadEntries();
-      if (!entries.length) { showAlert(t('export.noDataTitle'), t('export.noDataBody')); setLoading(null); return; }
+      const name = await loadName(); const entries = await loadEntries(); const qResults = await loadAllQuestionnaires();
+      if (!entries.length && !qResults.length) { showAlert(t('export.noDataTitle'), t('export.noDataBody')); setLoading(null); return; }
       const content = format === 'csv' ? await exportToCSV(name) : await exportToJSON(name);
       const filename = `sleep-diaries-${name ?? 'export'}-${new Date().toISOString().split('T')[0]}.${format}`;
       if (Platform.OS === 'web') {
